@@ -1,0 +1,23 @@
+
+<launch>
+
+    <include file="$(find vrviz)/launch/vrviz.launch">
+        <arg name="cloud_remap" value="/camera/depth/points"/>
+        <arg name="marker_remap" value="/marker_array"/>
+        <arg name="scaling_factor" value="1.0"/>
+        <arg name="point_size" value="1"/>
+        <arg name="twist_remap" value="/cmd_vel_mux/input/teleop"/>
+        <arg name="load_robot" value="true"/>
+        <arg name="show_tf" value="true"/>
+    </include>
+    <node pkg="tf" type="static_transform_publisher" name="coordinate_vive_base" 
+        args="0 0 0 0 0 1.57079632679 odom vive  10" />
+
+    <include file="$(find turtlebot_gazebo)/launch/turtlebot_world.launch">
+      <arg name="gui" value="false"/>
+    </include>
+
+    <node pkg="vrviz" type="marker_test" name="marker_test" />
+
+	
+</launch>
