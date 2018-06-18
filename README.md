@@ -10,14 +10,16 @@ virtual space running natively on Ubuntu. There is currently not many message ty
 Prerequisites
 -------------
 
-This is a proof of concept level product for now, so I have not
-kept careful track of what/how I installed to make this run. 
+The main dependancy is SteamVR. 
 
-The main dependancy is the [openvr](https://github.com/ValveSoftware/openvr) 
-repo, and if you can build and run the hellovr_opengl sample then you should 
-have all the VR dependencies sorted. Other non-ROS dependencies include [assimp](http://www.assimp.org/) and [ImageMagick](https://www.imagemagick.org) for loading URDF robot models with Collada meshes.
-The `openvr` repo is expected to be checked out in `~/github/openvr`, for the linking to work either put the repo there or change the CMakeLists to point 
-to the correct location.
+Several library dependancies are included in the the repo, the [openvr](https://github.com/ValveSoftware/openvr) 
+library, which is included in `openvr_library` and sdl2 which is included in `sdl2_library`.
+
+The non-ROS dependencies include GLEW for rendering and [assimp](http://www.assimp.org/) for loading URDF robot models with Collada meshes.
+These should be able to be installed with:
+```
+sudo apt-get install libglew-dev libassimp-dev
+```
 
 Running with Steam Runtime
 --------------------------

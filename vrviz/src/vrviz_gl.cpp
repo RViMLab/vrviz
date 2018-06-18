@@ -1,6 +1,3 @@
-//========= Copyright Valve Corporation ============//
-
-
 /// ROS
 #include <ros/ros.h>
 #include <ros/package.h>
@@ -63,8 +60,9 @@ tf::TransformListener* listener;
 /// Parameters
 std::string vrviz_include_path;
 std::string texture_filename = "/texture_map.png";
+std::string fallback_texture_filename = "/fallback_texture.png";
 std::string texture_character_map=" !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_";
-std::string base_frame = "vive";
+std::string base_frame = "vrviz_base";
 std::string frame_prefix = base_frame;
 float hud_dist=1.0;///!< meters; distance that the head's up display will appear away
 float hud_size=2.0;///!< Radians; How much
@@ -110,6 +108,8 @@ std::vector<float> color_tris_vertdataarray;
 class VRVizApplication: public CMainApplication {
 private:
     tf::Transform previous_trans;
+    Matrix4 previous_trans_mat;
+    Matrix4 current_trans_mat;
     int pressed_id;
     std::vector<tf_obj> tf_cache;
 
@@ -123,6 +123,10 @@ private:
         m_fAngle(1.f),
         pressed_id(-1)
     {
+
+        previous_trans.setIdentity();
+
+        /// Start the tf_cache out with the base frame
         tf_obj base_frame_obj;
         base_frame_obj.frame_id=base_frame;
         base_frame_obj.transform=Matrix4().identity();
@@ -214,9 +218,14 @@ private:
     {
         std::vector<float> vertdataarray;
         if(show_tf){
+            /// Show the 3 axis of every frame in our cache
             for(int ii=0;ii<tf_cache.size();ii++){
                 add_frame_to_scene(tf_cache[ii].transform,vertdataarray,0.1);
             }
+        }if(pressed_id!=-1){
+            /// Show the frames we are using to calculate twist commands
+            add_frame_to_scene(previous_trans_mat,vertdataarray,0.05);
+            add_frame_to_scene(current_trans_mat ,vertdataarray,0.07);
         }
         if(show_grid){
             add_grid_to_scene(vertdataarray);
@@ -412,6 +421,14 @@ private:
         return cart;
     }
 
+    /*!
+     * \brief add character as textured quad
+     * \param mat         Transform of the text globally
+     * \param vertdata    Where to put the vertices
+     * \param character   What character to print
+     * \param char_num    Offset each character side by side
+     * \param quad_size   How tall/wide should the character be
+     */
     void add_char_quad(Matrix4 mat, std::vector<float> &vertdata, char character,int char_num=0,float quad_size=0.0005){
 
         Vector2 text_global_start;
@@ -452,6 +469,13 @@ private:
         std::cout << "Error! character \"" << character << "\" not recognized" << std::endl;
     }
 
+    /*!
+     * \brief Add Text To Scene
+     * \param mat         Transform of the text globally
+     * \param vertdata    Where to put the vertices
+     * \param text        String to display
+     * \param size        How tall/wide should each character be
+     */
     void AddTextToScene( Matrix4 mat, std::vector<float> &vertdata, std::string text,float size=0.010)
     {
 
@@ -588,6 +612,14 @@ private:
         }
     }
 
+    /*!
+     * \brief add rviz type grid to scene
+     * \note  defaults should generate the same as rviz default
+     * \param vertdataarray      Where to put the vertices
+     * \param cell_size          Size in ROS units not VR units
+     * \param plane_cell_count   How many cells (in each direction)
+     * \param color              What RGB color to apply
+     */
     void add_grid_to_scene( std::vector<float> &vertdataarray, float cell_size=1.0, int plane_cell_count=10, Vector3 color=Vector3(0.627,0.627,0.627) ){
         cell_size*=scaling_factor;
         for(int jj=0;jj<3;jj++){
@@ -620,6 +652,13 @@ private:
     }
 
 
+    /*!
+     * \brief add_point_to_scene
+     * \param mat         Transform of the text globally
+     * \param vertdata    Where to put the vertices
+     * \param pt          point relative to the matrix transform
+     * \param colour      RGB color, or colour if you prefer
+     */
     void add_point_to_scene( Matrix4 mat, std::vector<float> &vertdata, Vector4 pt, Vector3 colour)
     {
 
@@ -743,6 +782,9 @@ private:
                             twist_msg.linear.x=trans.getOrigin().getX();
                             twist_msg.linear.y=trans.getOrigin().getY();
                             twist_msg.linear.z=trans.getOrigin().getZ();
+
+                            previous_trans_mat = VrTransform(tf::StampedTransform(previous_trans,ros::Time::now(),"foo","bar"));
+                            current_trans_mat  = VrTransform(tf::StampedTransform(current_trans,ros::Time::now(),"foo","bar"));
                         }else if(pressed_id==-1){
                             /// This is the first we have heard about this
                             pressed_id=controller_id;
@@ -766,7 +808,11 @@ private:
     }
 
 
-    /// Convert to ROS transform, rigid 6DOF 3D transform
+    /*!
+     * \brief Convert from VR to ROS transform
+     * \param trans rigid 6DOF 3D transform
+     * \return ROS tf transform
+     */
     tf::Transform TfTransform(Matrix4 trans)
     {
 
@@ -819,6 +865,20 @@ private:
         return mat1 * mat2;
     }
 
+    /*!
+     * \brief Get a matrix pose from ROS
+     *
+     * This will give a transform of the target in terms
+     * of the base_frame.
+     *
+     * If we have the target frame in our cache, we just
+     * use that which could be out of date.
+     * This is fine for things that are fixed to
+     * a rigid or slowly moving frame.
+     *
+     * \param frame_name The name of the frame we want
+     * \return VR transform
+     */
     Matrix4 GetRobotMatrixPose( std::string frame_name ){
         /// First, look to see if we have it in the cache
         for(int ii=0;ii<tf_cache.size();ii++){
@@ -852,15 +912,11 @@ VRVizApplication *pVRVizApplication;
 /*!
  * \brief Callback for an array of Visualization Markers
  *
- * \warning This currently only works with spheres!
- *
- * For now, it checks to see if something is 'mostly red' 'mostly green'
- * or 'mostly blue' and grabs one of those textures, otherwise it just applies
- * a bland texture.
+ * \warning This currently only works with text!
  *
  * \todo Allow standard RGB color
- * \todo Allow specification of texture coords from texture map?
- * \todo Allow cubes, cylinders, lines, etc.
+ * \todo Allow Marker::MESH_RESOURCE (should be easy, just call loadModel())
+ * \todo Allow spheres, cubes, cylinders, lines, etc.
  *
  * \param msg
  */
@@ -1091,6 +1147,7 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
     myMesh->name=name;
     myMesh->scale=scale;
     myMesh->trans=trans;
+    myMesh->fallback_texture_filename=fallback_texture_filename;
 
     bool verbose=false;
 
@@ -1249,6 +1306,7 @@ int main(int argc, char *argv[])
     pVRVizApplication->setScale(scaling_factor);
     pVRVizApplication->setPointSize(point_size);
     pVRVizApplication->setTextPath(vrviz_include_path + texture_filename);
+    fallback_texture_filename = vrviz_include_path + fallback_texture_filename;
 
     /// Try initializing the application - this will try to connect to a VR headset
     if (!pVRVizApplication->BInit())

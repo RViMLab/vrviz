@@ -1,5 +1,8 @@
 //========= Copyright Valve Corporation ============//
 
+#ifndef OPENVR_GL_H
+#define	OPENVR_GL_H
+
 #include <SDL.h>
 #include <GL/glew.h>
 #include <SDL_opengl.h>
@@ -255,3 +258,5 @@ void inline dprintf( const char *fmt, ... )
 
 	OutputDebugStringA( buffer );
 }
+
+#endif // OPENVR_GL_H

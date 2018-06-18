@@ -1,18 +1,18 @@
 
 <launch>
-    <arg name="bagfile" default="$(find vrviz)/../../../ctr_data/bagfiles/demo_mapping.bag"/>
+    <arg name="bagfile"/>
 
     <include file="$(find vrviz)/launch/vrviz.launch">
       <arg name="cloud_remap" value="/cloud"/>
-      <arg name="scaling_factor" value="1.0"/>
+      <arg name="scaling_factor" value="0.25"/>
       <arg name="point_size" value="1"/>
     </include>
-    <node pkg="tf" type="static_transform_publisher" name="coordinate_vive_base" 
-        args="0 0 0 -1.57079632679 0 1.57079632679 base_link vive  10" />
+    <node pkg="tf" type="static_transform_publisher" name="coordinate_vrviz_base_base"
+        args="0 0 0 -1.57079632679 0 1.57079632679 base_link vrviz_base  10" />
 
 	<param name="use_sim_time" value="true" />
-        <node pkg="rosbag" type="play" name="player" output="screen" args=" --clock $(arg bagfile)"/>
-	
+        <node pkg="rosbag" type="play" name="player" output="screen" args=" -r 2.0 --clock $(arg bagfile)"/>
+
     <node pkg="image_transport" type="republish" name="color_repub"
         args="compressed raw">
         <remap from="in"  to="/data_throttled_image"/>

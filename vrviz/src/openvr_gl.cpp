@@ -7,8 +7,8 @@
 CMainApplication::CMainApplication( int argc, char *argv[] )
 	: m_pCompanionWindow(NULL)
 	, m_pContext(NULL)
-	, m_nCompanionWindowWidth( 640 )
-	, m_nCompanionWindowHeight( 320 )
+	, m_nCompanionWindowWidth( 1920 )
+	, m_nCompanionWindowHeight( 1080 )
 	, m_unSceneProgramID( 0 )
 	, m_unCompanionWindowProgramID( 0 )
 	, m_unControllerTransformProgramID( 0 )
@@ -135,7 +135,7 @@ bool CMainApplication::BInit()
 		return false;
 	}
 
-    int nWindowPosX = 700;
+    int nWindowPosX = 100;
 	int nWindowPosY = 100;
 	Uint32 unWindowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
 

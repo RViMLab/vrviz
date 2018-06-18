@@ -22,8 +22,12 @@
   <build_depend>pcl_conversions</build_depend>
   <build_depend>pcl_ros</build_depend>
   <build_depend>urdf</build_depend>
+  <build_depend>openvr_library</build_depend>
+  <build_depend>sdl2_library</build_depend>
+  <build_depend>vulkan_library</build_depend>
   <build_depend>common_rosdeps</build_depend>
   <build_depend>assimp</build_depend>
+  <build_depend>libglew-dev</build_depend>
 
   <run_depend>roscpp</run_depend>
   <run_depend>roslib</run_depend>
@@ -37,7 +41,11 @@
   <run_depend>pcl_conversions</run_depend>
   <run_depend>pcl_ros</run_depend>
   <run_depend>urdf</run_depend>
+  <run_depend>openvr_library</run_depend>
+  <run_depend>sdl2_library</run_depend>
+  <run_depend>vulkan_library</run_depend>
   <run_depend>common_rosdeps</run_depend>
   <run_depend>assimp</run_depend>
+  <run_depend>libglew-dev</run_depend>
 
 </package>

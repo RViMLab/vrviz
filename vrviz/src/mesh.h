@@ -63,6 +63,7 @@ public:
     void Render();
 
     std::string name;
+    std::string fallback_texture_filename;
     Vector3 scale;
     Matrix4 trans;
     bool Z_UP;

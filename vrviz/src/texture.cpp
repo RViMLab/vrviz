@@ -25,21 +25,27 @@ Texture::Texture(GLenum TextureTarget, const std::string& FileName)
     m_fileName      = FileName;
 }
 
-
 bool Texture::Load()
 {
-    try {
-        m_image.read(m_fileName);
-        m_image.write(&m_blob, "RGBA");
-    }
-    catch (Magick::Error& Error) {
-        std::cout << "Error loading texture '" << m_fileName << "': " << Error.what() << std::endl;
+    m_cv_image=cv::imread(m_fileName, CV_LOAD_IMAGE_COLOR);
+    if (m_cv_image.empty()) // Check for invalid input
+    {
         return false;
     }
 
     glGenTextures(1, &m_textureObj);
     glBindTexture(m_textureTarget, m_textureObj);
-    glTexImage2D(m_textureTarget, 0, GL_RGBA, m_image.columns(), m_image.rows(), 0, GL_RGBA, GL_UNSIGNED_BYTE, m_blob.data());
+
+    glTexImage2D(GL_TEXTURE_2D,     // Type of texture
+                 0,                 // Pyramid level (for mip-mapping) - 0 is the top level
+                 GL_RGBA,           // Internal colour format to convert to
+                 m_cv_image.cols,   // Image width  i.e. 640 for Kinect in standard mode
+                 m_cv_image.rows,   // Image height i.e. 480 for Kinect in standard mode
+                 0,                 // Border width in pixels (can either be 1 or 0)
+                 GL_BGR,            // Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
+                 GL_UNSIGNED_BYTE,  // Image data type
+                 m_cv_image.ptr()); // The actual image data itself
+
     glTexParameterf(m_textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameterf(m_textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glBindTexture(m_textureTarget, 0);

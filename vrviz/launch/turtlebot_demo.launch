@@ -10,8 +10,8 @@
         <arg name="load_robot" value="true"/>
         <arg name="show_tf" value="true"/>
     </include>
-    <node pkg="tf" type="static_transform_publisher" name="coordinate_vive_base" 
-        args="0 0 0 0 0 1.57079632679 odom vive  10" />
+    <node pkg="tf" type="static_transform_publisher" name="coordinate_vrviz_base_base"
+        args="0 0 0 0 0 1.57079632679 odom vrviz_base  10" />
 
     <include file="$(find turtlebot_gazebo)/launch/turtlebot_world.launch">
       <arg name="gui" value="false"/>

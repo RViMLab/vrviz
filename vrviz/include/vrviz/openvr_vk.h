@@ -1,5 +1,8 @@
 //========= Copyright Valve Corporation ============//
 
+#ifndef OPENVR_VK_H
+#define	OPENVR_VK_H
+
 #if defined( _WIN32 )
 	#define VK_USE_PLATFORM_WIN32_KHR
 #else
@@ -459,3 +462,5 @@ static bool inline CreateVulkanBuffer( VkDevice pDevice, const VkPhysicalDeviceM
 	}
 	return true;
 }
+
+#endif //OPENVR_VK_H

@@ -22,7 +22,8 @@
 #include <string>
 
 #include <GL/glew.h>
-#include <ImageMagick-6/Magick++.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 class Texture
 {
@@ -37,8 +38,8 @@ private:
     std::string m_fileName;
     GLenum m_textureTarget;
     GLuint m_textureObj;
-    Magick::Image m_image;
-    Magick::Blob m_blob;
+
+    cv::Mat m_cv_image;
 };
 
 

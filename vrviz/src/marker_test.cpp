@@ -5,34 +5,15 @@
 
 #include <tf/transform_broadcaster.h>
 #include <tf/tf.h>
+#include <tf2_msgs/TFMessage.h>
 
 ros::Publisher g_marker_pub;
 
-void publishCallback(const ros::TimerEvent&)
-{
-  visualization_msgs::MarkerArray msg;
-  {
+std::vector<std::string> tf_cache;
+
+visualization_msgs::Marker frame_label(std::string frame_id){
     visualization_msgs::Marker marker;
-    marker.header.frame_id = "/vive";
-    marker.header.stamp = ros::Time::now();
-    marker.ns = "marker_text";
-    marker.id = 0;
-    marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
-    marker.action = visualization_msgs::Marker::ADD;
-    marker.pose.position.x = 0.0;
-    marker.pose.position.y = 0.7;
-    marker.pose.position.z =-0.5;
-    marker.scale.z = 0.020;
-    marker.pose.orientation.x = 0.0;
-    marker.pose.orientation.y = 0.0;
-    marker.pose.orientation.z = 0.0;
-    marker.pose.orientation.w = 1.0;
-    marker.text="USE WAND TRIGGER TO DRIVE";
-    msg.markers.push_back(marker);
-  }
-  {
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = "/my_tf_label";
+    marker.header.frame_id = frame_id;
     marker.header.stamp = ros::Time::now();
     marker.ns = "marker_text";
     marker.id = 0;
@@ -46,9 +27,37 @@ void publishCallback(const ros::TimerEvent&)
     marker.pose.orientation.y = 0.0;
     marker.pose.orientation.z = 0.0;
     marker.pose.orientation.w = 1.0;
-    marker.text="my_tf_label";
-    msg.markers.push_back(marker);
-  }
+    marker.text=frame_id;
+    return marker;
+}
+
+void publishCallback(const ros::TimerEvent&)
+{
+    visualization_msgs::MarkerArray msg;
+    {
+        /// Add some instructions for the demo
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = "/vrviz_base";
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "marker_text";
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = 0.0;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.5;
+        marker.scale.z = 0.020;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+        marker.text="USE WAND TRIGGER TO DRIVE";
+        msg.markers.push_back(marker);
+    }
+    /// Send a text marker at the origin of every frame we know about
+    for(int idx=0;idx<tf_cache.size();idx++){
+        msg.markers.push_back(frame_label(tf_cache[idx]));
+    }
 //  {
 //    visualization_msgs::Marker marker;
 //    marker.header.frame_id = "/base_link";
@@ -88,11 +97,44 @@ void publishCallback(const ros::TimerEvent&)
 
 }
 
+/*!
+ * \brief add a frame to the tf cache
+ * \param frame_id frame to add
+ */
+void add_tf_to_cache(std::string frame_id)
+{
+    if(frame_id.substr(0,10)=="vrviz_base"){return;}
+    for(int idx=0;idx<tf_cache.size();idx++){
+        if(frame_id==tf_cache[idx]){
+            return;
+        }
+    }
+    tf_cache.push_back(frame_id);
+}
+
+/*!
+ * \brief tf_Callback for subscribing to TF messages
+ *
+ * We are just sniffing the /tf message and adding any frame_id's
+ * we see to our cache.
+ * \note that this will miss some frames, e.g. from robot_description
+ *
+ * \param msg Pointer to the message
+ */
+void tf_Callback(const tf2_msgs::TFMessage::ConstPtr& msg)
+{
+    for(int idx=0;idx<msg->transforms.size();idx++){
+        add_tf_to_cache(msg->transforms[idx].header.frame_id);
+        add_tf_to_cache(msg->transforms[idx].child_frame_id);
+    }
+}
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "marker_test");
   ros::NodeHandle n;
 
+  ros::Subscriber tf_sub = n.subscribe("/tf", 1, tf_Callback);
   g_marker_pub = n.advertise<visualization_msgs::MarkerArray> ("marker_array", 0);
   ros::Timer publish_timer = n.createTimer(ros::Duration(1), publishCallback);
 

@@ -272,7 +272,8 @@ bool Mesh::InitMaterials(const aiScene* pScene, const std::string& Filename)
 
         // Load a white texture in case the model does not include its own texture
         if (!m_Textures[i]) {
-            m_Textures[i] = new Texture(GL_TEXTURE_2D, "../Content/white.png");
+            printf("No texture, falling back to '%s'\n", fallback_texture_filename.c_str());
+            m_Textures[i] = new Texture(GL_TEXTURE_2D, fallback_texture_filename);
 
             Ret = m_Textures[i]->Load();
         }
@@ -287,9 +288,6 @@ void Mesh::Render()
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
 
-    if( m_Entries.size()>1){
-        std::cout << "Woah! More than one entry?" <<  m_Entries.size() << std::endl;
-    }
     for (unsigned int i = 0 ; i < m_Entries.size() ; i++) {
         glBindBuffer(GL_ARRAY_BUFFER, m_Entries[i].VB);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
