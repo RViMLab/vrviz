@@ -163,6 +163,7 @@ public:
 
     unsigned int m_unPointSize;
     std::string m_strTextPath;
+    std::string m_strActionManifestPath;
 protected:
 	bool m_bDebugVulkan;
 	bool m_bVerbose;

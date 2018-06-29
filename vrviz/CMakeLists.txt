@@ -73,16 +73,16 @@ file(GLOB SHARED_SRC_FILES
   assimp
 )
 
-add_executable(vrviz_vk
-  ${SHARED_SRC_FILES}
-                 src/vrviz_gl.cpp
-                 src/openvr_vk.cpp)
- target_link_libraries(vrviz_vk
-  ${catkin_LIBRARIES}
-  ${CMAKE_DL_LIBS}
-  ${EXTRA_LIBS}
-)
-set_target_properties(vrviz_vk PROPERTIES COMPILE_FLAGS "-DUSE_VULKAN")
+#add_executable(vrviz_vk
+#  ${SHARED_SRC_FILES}
+#                 src/vrviz_gl.cpp
+#                 src/openvr_vk.cpp)
+# target_link_libraries(vrviz_vk
+#  ${catkin_LIBRARIES}
+#  ${CMAKE_DL_LIBS}
+#  ${EXTRA_LIBS}
+#)
+#set_target_properties(vrviz_vk PROPERTIES COMPILE_FLAGS "-DUSE_VULKAN")
 
 add_executable(marker_test src/marker_test.cpp)
 target_link_libraries(marker_test ${catkin_LIBRARIES})

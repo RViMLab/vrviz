@@ -273,6 +273,11 @@ bool Mesh::InitMaterials(const aiScene* pScene, const std::string& Filename)
         // Load a white texture in case the model does not include its own texture
         if (!m_Textures[i]) {
             printf("No texture, falling back to '%s'\n", fallback_texture_filename.c_str());
+
+            aiColor3D color (0.f,0.f,0.f);
+            pMaterial->Get(AI_MATKEY_COLOR_DIFFUSE,color);
+            printf("Color = '%f,%f,%f'\n", color.r,color.g,color.b);
+
             m_Textures[i] = new Texture(GL_TEXTURE_2D, fallback_texture_filename);
 
             Ret = m_Textures[i]->Load();

@@ -92,8 +92,8 @@ cv::Mat image_received;
 /// \warning These arrays are edited by the ROS callback, and read by the VR code! This is probably NOT THREADSAFE!
 
 std::vector<float> color_points_vertdataarray;
-std::vector<float> textured_tris_vertdataarray;
 std::vector<float> color_tris_vertdataarray;
+std::vector<float> textured_tris_vertdataarray;
 
 
 /*!
@@ -284,6 +284,11 @@ private:
         m_strTextPath = path;
     }
 
+    void setActionManifestPath(std::string path)
+    {
+        m_strActionManifestPath = path;
+    }
+
     /*!
      * \brief set point size in pixels
      * \param point_size desired point size
@@ -409,6 +414,40 @@ private:
             glBufferData( GL_ARRAY_BUFFER, sizeof(float) * color_points_vertdataarray.size(), &color_points_vertdataarray[0], GL_STREAM_DRAW );
         }
 
+
+        // Setup the VAO the first time through.
+        if ( m_unColorTrisVAO == 0 )
+        {
+            glGenVertexArrays( 1, &m_unColorTrisVAO );
+            glBindVertexArray( m_unColorTrisVAO );
+
+            glGenBuffers( 1, &m_glColorTrisVertBuffer );
+            glBindBuffer( GL_ARRAY_BUFFER, m_glColorTrisVertBuffer );
+
+            GLuint stride = 2 * 3 * sizeof( float );
+            uintptr_t offset = 0;
+
+            glEnableVertexAttribArray( 0 );
+            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset);
+
+            offset += sizeof( Vector3 );
+            glEnableVertexAttribArray( 1 );
+            glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset);
+
+            glBindVertexArray( 0 );
+        }
+
+        glBindBuffer( GL_ARRAY_BUFFER, m_glColorTrisVertBuffer );
+
+        // set vertex data if we have some
+        if( color_tris_vertdataarray.size() > 0 )
+        {
+            //$ TODO: Use glBufferSubData for this...
+            m_uiColorTrisVertcount = color_tris_vertdataarray.size()/6;
+            glBufferData( GL_ARRAY_BUFFER, sizeof(float) * color_tris_vertdataarray.size(), &color_tris_vertdataarray[0], GL_STREAM_DRAW );
+        }
+
+
 #endif
         scene_update_needed=false;
     }
@@ -484,14 +523,79 @@ private:
         }
     }
 
+    void AddColorVertex(Vector4 pt,Vector3 color, std::vector<float> &vertdata){
+        vertdata.push_back(pt.x);
+        vertdata.push_back(pt.y);
+        vertdata.push_back(pt.z);
+        vertdata.push_back(color.x);
+        vertdata.push_back(color.y);
+        vertdata.push_back(color.z);
+    }
+
     //-----------------------------------------------------------------------------
     // Purpose:
     //-----------------------------------------------------------------------------
-    void AddSphereToScene( Matrix4 mat, std::vector<float> &vertdata, float radius)
+    void AddCubeToScene( Matrix4 mat, std::vector<float> &vertdata, float radius, Vector3 color)
     {
+        // The eight corners of the cube
+        Vector4 A = mat * Vector4( -radius, -radius, -radius, 1 );
+        Vector4 B = mat * Vector4(  radius, -radius, -radius, 1 );
+        Vector4 C = mat * Vector4(  radius,  radius, -radius, 1 );
+        Vector4 D = mat * Vector4( -radius,  radius, -radius, 1 );
+        Vector4 E = mat * Vector4( -radius, -radius,  radius, 1 );
+        Vector4 F = mat * Vector4(  radius, -radius,  radius, 1 );
+        Vector4 G = mat * Vector4(  radius,  radius,  radius, 1 );
+        Vector4 H = mat * Vector4( -radius,  radius,  radius, 1 );
 
-        Vector2 text_start(0.0,0.0);
-        Vector2 text_stop(1.0,1.0);
+        // triangles instead of quads
+        AddColorVertex( E , color, vertdata ); //Front
+        AddColorVertex( F , color, vertdata );
+        AddColorVertex( G , color, vertdata );
+        AddColorVertex( G , color, vertdata );
+        AddColorVertex( H , color, vertdata );
+        AddColorVertex( E , color, vertdata );
+
+        AddColorVertex( B , color, vertdata ); //Back
+        AddColorVertex( A , color, vertdata );
+        AddColorVertex( D , color, vertdata );
+        AddColorVertex( D , color, vertdata );
+        AddColorVertex( C , color, vertdata );
+        AddColorVertex( B , color, vertdata );
+
+        AddColorVertex( H , color, vertdata ); //Top
+        AddColorVertex( G , color, vertdata );
+        AddColorVertex( C , color, vertdata );
+        AddColorVertex( C , color, vertdata );
+        AddColorVertex( D , color, vertdata );
+        AddColorVertex( H , color, vertdata );
+
+        AddColorVertex( A , color, vertdata ); //Bottom
+        AddColorVertex( B , color, vertdata );
+        AddColorVertex( F , color, vertdata );
+        AddColorVertex( F , color, vertdata );
+        AddColorVertex( E , color, vertdata );
+        AddColorVertex( A , color, vertdata );
+
+        AddColorVertex( A , color, vertdata ); //Left
+        AddColorVertex( E , color, vertdata );
+        AddColorVertex( H , color, vertdata );
+        AddColorVertex( H , color, vertdata );
+        AddColorVertex( D , color, vertdata );
+        AddColorVertex( A , color, vertdata );
+
+        AddColorVertex( F , color, vertdata ); //Right
+        AddColorVertex( B , color, vertdata );
+        AddColorVertex( C , color, vertdata );
+        AddColorVertex( C , color, vertdata );
+        AddColorVertex( G , color, vertdata );
+        AddColorVertex( F , color, vertdata );
+    }
+
+    //-----------------------------------------------------------------------------
+    // Purpose:
+    //-----------------------------------------------------------------------------
+    void AddSphereToScene( Matrix4 mat, std::vector<float> &vertdata, float radius, Vector3 color)
+    {
 
         int num_lat=16;
         int num_lon=num_lat*2;
@@ -499,11 +603,6 @@ private:
         {
             for(int lon=0;lon<num_lon;lon++)
             {
-                Vector2 texture_1,texture_2;
-                texture_1.x=float(lon  )/num_lon*(text_stop.x-text_start.x)+text_start.x;
-                texture_2.x=float(lon+1)/num_lon*(text_stop.x-text_start.x)+text_start.x;
-                texture_1.y=float(lat  )/num_lat*(text_stop.y-text_start.y)+text_start.y;
-                texture_2.y=float(lat+1)/num_lat*(text_stop.y-text_start.y)+text_start.y;
                 float azimuth1=(lon  )/float(num_lon)*M_PI*2;
                 float azimuth2=(lon+1)/float(num_lon)*M_PI*2;
                 float elevation1=(lat  )/float(num_lat)*M_PI;
@@ -513,17 +612,17 @@ private:
                 Vector4 p2=mat*sphere2cart(azimuth2,elevation1,radius);
                 Vector4 p3=mat*sphere2cart(azimuth2,elevation2,radius);
                 Vector4 p4=mat*sphere2cart(azimuth1,elevation2,radius);
-                Vector2 t1=Vector2(texture_1.x, texture_1.y);
-                Vector2 t2=Vector2(texture_2.x, texture_1.y);
-                Vector2 t3=Vector2(texture_2.x, texture_2.y);
-                Vector2 t4=Vector2(texture_1.x, texture_2.y);
 
-                AddCubeVertex( p1.x, p1.y, p1.z, t1.x, t1.y, vertdata );
-                AddCubeVertex( p2.x, p2.y, p2.z, t2.x, t2.y, vertdata );
-                AddCubeVertex( p3.x, p3.y, p3.z, t3.x, t3.y, vertdata );
-                AddCubeVertex( p3.x, p3.y, p3.z, t3.x, t3.y, vertdata );
-                AddCubeVertex( p1.x, p1.y, p1.z, t1.x, t1.y, vertdata );
-                AddCubeVertex( p4.x, p4.y, p4.z, t4.x, t4.y, vertdata );
+                if(lat!=0){
+                    AddColorVertex( p1, color, vertdata );
+                    AddColorVertex( p2, color, vertdata );
+                    AddColorVertex( p3, color, vertdata );
+                }
+                if(lat!=num_lat-1){
+                    AddColorVertex( p3, color, vertdata );
+                    AddColorVertex( p1, color, vertdata );
+                    AddColorVertex( p4, color, vertdata );
+                }
             }
         }
     }
@@ -531,23 +630,21 @@ private:
     //-----------------------------------------------------------------------------
     // Purpose:
     //-----------------------------------------------------------------------------
-    void AddCylinderToScene( Matrix4 mat, std::vector<float> &vertdata)
+    void AddCylinderToScene( Matrix4 mat, std::vector<float> &vertdata, float radius, float length, Vector3 color)
     {
-        Vector2 text_start(0.0,0.0);
-        Vector2 text_stop(1.0,1.0);
 
-        Vector4 Top = mat * Vector4( 0, 0, 0, 1 );
-        Vector4 Bot = mat * Vector4( 0, 0, 1, 1 );
+        Vector4 Top = mat * Vector4( 0, 0, -length/2, 1 );
+        Vector4 Bot = mat * Vector4( 0, 0,  length/2, 1 );
         std::vector<Vector4> Top_Ring;
         //std::vector<Vector2> Top_Ring_Text;
         std::vector<Vector4> Bot_Ring;
         //std::vector<Vector2> Bot_Ring_Text;
         for(int ii=0;ii<m_iCylinderNumFacets;ii++){
             float angle = ii*M_PI*2.0/m_iCylinderNumFacets;
-            Vector4 top_vert = mat * Vector4( sin(angle), cos(angle), 0, 1 );
+            Vector4 top_vert = mat * Vector4( radius*sin(angle), radius*cos(angle), -length/2, 1 );
             Top_Ring.push_back(top_vert);
             //Top_Ring_Text.push_back(Vector2((cos(angle)*0.5)/(text_stop.x-text_start.x)+text_start.x,(sin(angle)*0.5)/(text_stop.y-text_start.y)+text_start.y));
-            Vector4 bot_vert = mat * Vector4( sin(angle), cos(angle), 1, 1 );
+            Vector4 bot_vert = mat * Vector4( radius*sin(angle), radius*cos(angle),  length/2, 1 );
             Bot_Ring.push_back(bot_vert);
             //Bot_Ring_Text.push_back(Vector2((cos(angle)*0.5)/(text_stop.x-text_start.x)+text_start.x,(sin(angle)*0.5)/(text_stop.y-text_start.y)+text_start.y));
         }
@@ -558,22 +655,22 @@ private:
             int idx2=(ii+1)%m_iCylinderNumFacets;
 
             //Top Pinwheel
-            AddCubeVertex( Top.x, Top.y, Top.z, text_start.x, text_start.y, vertdata );
-            AddCubeVertex( Top_Ring[idx1].x, Top_Ring[idx1].y, Top_Ring[idx1].z, text_start.x, text_stop.y, vertdata );
-            AddCubeVertex( Top_Ring[idx2].x, Top_Ring[idx2].y, Top_Ring[idx2].z, text_stop.x, text_stop.y, vertdata );
+            AddColorVertex( Top, color, vertdata );
+            AddColorVertex( Top_Ring[idx1], color, vertdata );
+            AddColorVertex( Top_Ring[idx2], color, vertdata );
 
             //Bottom Pinwheel
-            AddCubeVertex( Bot.x, Bot.y, Bot.z, text_start.x, text_start.y, vertdata );
-            AddCubeVertex( Bot_Ring[idx1].x, Bot_Ring[idx1].y, Bot_Ring[idx1].z, text_start.x, text_stop.y, vertdata );
-            AddCubeVertex( Bot_Ring[idx2].x, Bot_Ring[idx2].y, Bot_Ring[idx2].z, text_stop.x, text_stop.y, vertdata );
+            AddColorVertex( Bot, color, vertdata );
+            AddColorVertex( Bot_Ring[idx1], color, vertdata );
+            AddColorVertex( Bot_Ring[idx2], color, vertdata );
 
             //Side
-            AddCubeVertex( Bot_Ring[idx1].x, Bot_Ring[idx1].y, Bot_Ring[idx1].z, text_start.x, text_stop.y, vertdata ); //Front
-            AddCubeVertex( Bot_Ring[idx2].x, Bot_Ring[idx2].y, Bot_Ring[idx2].z, text_stop.x, text_stop.y, vertdata );
-            AddCubeVertex( Top_Ring[idx2].x, Top_Ring[idx2].y, Top_Ring[idx2].z, text_stop.x, text_start.y, vertdata );
-            AddCubeVertex( Top_Ring[idx2].x, Top_Ring[idx2].y, Top_Ring[idx2].z, text_stop.x, text_start.y, vertdata );
-            AddCubeVertex( Top_Ring[idx1].x, Top_Ring[idx1].y, Top_Ring[idx1].z, text_start.x, text_start.y, vertdata );
-            AddCubeVertex( Bot_Ring[idx1].x, Bot_Ring[idx1].y, Bot_Ring[idx1].z, text_start.x, text_stop.y, vertdata );
+            AddColorVertex( Bot_Ring[idx1], color, vertdata ); //Front
+            AddColorVertex( Bot_Ring[idx2], color, vertdata );
+            AddColorVertex( Top_Ring[idx2], color, vertdata );
+            AddColorVertex( Top_Ring[idx2], color, vertdata );
+            AddColorVertex( Top_Ring[idx1], color, vertdata );
+            AddColorVertex( Bot_Ring[idx1], color, vertdata );
 
         }
     }
@@ -922,60 +1019,73 @@ VRVizApplication *pVRVizApplication;
  */
 void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
 {
-    std::vector<float> vertdataarray;
+    std::vector<float> texturedvertdataarray;
+    std::vector<float> colorvertdataarray;
 
     for(int ii=0;ii<msg->markers.size();ii++)
     {
         visualization_msgs::Marker marker=msg->markers[ii];
+
+        Vector4 pt;
+        /// We scale up from real world units to 'vr units'
+        pt.x=marker.pose.position.x*scaling_factor;
+        pt.y=marker.pose.position.y*scaling_factor;
+        pt.z=marker.pose.position.z*scaling_factor;
+        pt.w=1.f;
+
+        Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(marker.header.frame_id);
+
+        Matrix4 matTransform4;
+        matTransform4.translate(pt.x,pt.y,pt.z);
+        Matrix4 mat4 = mat * matTransform4;
+
         if(marker.type==visualization_msgs::Marker::SPHERE){
-//            Vector4 pt;
-//            pt.x=marker.pose.position.x;
-//            pt.y=marker.pose.position.y;
-//            pt.z=marker.pose.position.z;
-//            pt.w=1.f;
+            float radius=marker.scale.x/2.0*scaling_factor; /// scale.x should be diameter
+            Vector3 color(marker.color.r,
+                          marker.color.g,
+                          marker.color.b);
+            pVRVizApplication->AddSphereToScene(mat4,colorvertdataarray,radius,color);
+        }else if(marker.type==visualization_msgs::Marker::CUBE){
+            float radius=marker.scale.x/2.0*scaling_factor; /// scale.x should be cube width
+            Vector3 color(marker.color.r,
+                          marker.color.g,
+                          marker.color.b);
+            pVRVizApplication->AddCubeToScene(mat4,colorvertdataarray,radius,color);
+        }else if(marker.type==visualization_msgs::Marker::CYLINDER){
+            float radius=marker.scale.x/2.0*scaling_factor; /// scale.x is diameter in x direction (currently don't support ellipse)
+            float length=marker.scale.z*scaling_factor; /// Use scale.z to specify the height.
+            Vector3 color(marker.color.r,
+                          marker.color.g,
+                          marker.color.b);
+            Matrix4 mat5;
+            tf::Quaternion q(marker.pose.orientation.x,
+                             marker.pose.orientation.y,
+                             marker.pose.orientation.z,
+                             marker.pose.orientation.w);
+            tf::Matrix3x3 m(q);
+            mat5.set(m.getColumn(0).getX(),
+                     m.getColumn(0).getY(),
+                     m.getColumn(0).getZ(),0,
+                     m.getColumn(1).getX(),
+                     m.getColumn(1).getY(),
+                     m.getColumn(1).getZ(),0,
+                     m.getColumn(2).getX(),
+                     m.getColumn(2).getY(),
+                     m.getColumn(2).getZ(),0,
+                     0,0,0,1);
 
-//            Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(marker.header.frame_id);
-//            sphere_object sphere;
-
-//            if(marker.color.r>0.5 && marker.color.g<0.5 && marker.color.b<0.5){
-//                /// It is reddish
-//                sphere.texture_id=texture_leather_3;
-//            }else if(marker.color.r<0.5 && marker.color.g>0.5 && marker.color.b<0.5){
-//                /// It is greenish
-//                sphere.texture_id=texture_leather_2;
-//            }else if(marker.color.r<0.5 && marker.color.g<0.5 && marker.color.b>0.5){
-//                /// It is blueish
-//                sphere.texture_id=texture_leather_1;
-//            }else{
-//                /// It is something else. Make it brown.
-//                sphere.texture_id=texture_leather_4;
-//            }
-
-//            sphere.location = mat * pt;
-//            sphere.radius = marker.scale.x/2.f;
-//            spheres.push_back(sphere);
+            //mat5.rotate(q.getAngle(),q.getAxis().getX(),q.getAxis().getY(),q.getAxis().getZ());
+            Matrix4 mat6 = mat4*mat5;
+            pVRVizApplication->AddCylinderToScene(mat6,colorvertdataarray,radius,length,color);
         }else if(marker.type==visualization_msgs::Marker::TEXT_VIEW_FACING){
-            ROS_INFO_ONCE("Received Text Message");
-
-            Vector4 pt;
-            /// We scale up from real world units to 'vr units'
-            pt.x=marker.pose.position.x*scaling_factor;
-            pt.y=marker.pose.position.y*scaling_factor;
-            pt.z=marker.pose.position.z*scaling_factor;
-            pt.w=1.f;
-
-            Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(marker.header.frame_id);
-
-            Matrix4 matTransform4;
-            matTransform4.translate(pt.x,pt.y,pt.z);
-            Matrix4 mat4 = mat * matTransform4;
-            pVRVizApplication->AddTextToScene(mat4,vertdataarray,marker.text,marker.scale.z);
-
+            float height=marker.scale.z*scaling_factor; /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
+            pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,marker.text,height);
         }
     }
     /// Copy the data over to the shared data
     /// \todo This should be protected with a mutex of sorts!
-    textured_tris_vertdataarray=vertdataarray;
+    textured_tris_vertdataarray=texturedvertdataarray;
+    color_tris_vertdataarray=colorvertdataarray;
     scene_update_needed=true;
 }
 
@@ -1306,6 +1416,7 @@ int main(int argc, char *argv[])
     pVRVizApplication->setScale(scaling_factor);
     pVRVizApplication->setPointSize(point_size);
     pVRVizApplication->setTextPath(vrviz_include_path + texture_filename);
+    pVRVizApplication->setActionManifestPath(vrviz_include_path + "/vrviz_actions.json");
     fallback_texture_filename = vrviz_include_path + fallback_texture_filename;
 
     /// Try initializing the application - this will try to connect to a VR headset
