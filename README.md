@@ -1,7 +1,7 @@
 Visualization node for ROS using OpenVR
 =======================================
 
-[![Example Screenshot](http://img.youtube.com/vi/M0u4YXW0DFU/0.jpg)](http://www.youtube.com/watch?v=M0u4YXW0DFU "VRViz Turtlebot Demo")
+[![Example Screenshot](turtlebot_demo.jpg)](http://www.youtube.com/watch?v=M0u4YXW0DFU "VRViz Turtlebot Demo")
 
 This code was built from the [openvr](https://github.com/ValveSoftware/openvr) 
 example code, and adapted to run in catkin and to display ROS messages in 
@@ -38,9 +38,7 @@ For a demo of showing a Turtlebot in Gazebo, install `ros-kinetic-turtlebot-gaze
 ```
 roslaunch vrviz turtlebot_demo.launch
 ```
-This should load up the robot, and it can be controlled by pulling the trigger of the controller and then moving/rotating the wand while the trigger is depressed. This launch file will fix the 'ground' of the vive to the `odom` frame.
-
-![Example Screenshot](turtlebot_demo.jpg)
+This should load up the robot, and it can be controlled by pulling the trigger of the controller and then moving/rotating the wand while the trigger is depressed. This launch file will fix the 'ground' of the vive to the `odom` frame. See an example youtube video [here](http://www.youtube.com/watch?v=M0u4YXW0DFU "VRViz Turtlebot Demo").
 
 For a demo showing a bagfile download the `demo_mapping.bag` file from [here](http://wiki.ros.org/rtabmap_ros) and run:
 ```
