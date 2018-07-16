@@ -7,8 +7,8 @@
 CMainApplication::CMainApplication( int argc, char *argv[] )
 	: m_pCompanionWindow(NULL)
 	, m_pContext(NULL)
-    , m_nCompanionWindowWidth( 1280 )
-    , m_nCompanionWindowHeight( 720 )
+	, m_nCompanionWindowWidth( 1280 )
+	, m_nCompanionWindowHeight( 720 )
 	, m_unSceneProgramID( 0 )
 	, m_unCompanionWindowProgramID( 0 )
 	, m_unControllerTransformProgramID( 0 )
@@ -86,14 +86,14 @@ CMainApplication::~CMainApplication()
 // Purpose: Helper to get a string from a tracked device property and turn it
 //			into a std::string
 //-----------------------------------------------------------------------------
-std::string GetTrackedDeviceString( vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError *peError = NULL )
+std::string GetTrackedDeviceString( vr::IVRSystem *pHmd, vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError *peError = NULL )
 {
-	uint32_t unRequiredBufferLen = vr::VRSystem()->GetStringTrackedDeviceProperty( unDevice, prop, NULL, 0, peError );
+	uint32_t unRequiredBufferLen = pHmd->GetStringTrackedDeviceProperty( unDevice, prop, NULL, 0, peError );
 	if( unRequiredBufferLen == 0 )
 		return "";
 
 	char *pchBuffer = new char[ unRequiredBufferLen ];
-	unRequiredBufferLen = vr::VRSystem()->GetStringTrackedDeviceProperty( unDevice, prop, pchBuffer, unRequiredBufferLen, peError );
+	unRequiredBufferLen = pHmd->GetStringTrackedDeviceProperty( unDevice, prop, pchBuffer, unRequiredBufferLen, peError );
 	std::string sResult = pchBuffer;
 	delete [] pchBuffer;
 	return sResult;
@@ -122,10 +122,22 @@ bool CMainApplication::BInit()
 		sprintf_s( buf, sizeof( buf ), "Unable to init VR runtime: %s", vr::VR_GetVRInitErrorAsEnglishDescription( eError ) );
 		SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "VR_Init Failed", buf, NULL );
 		return false;
-    }
+	}
 
 
-	int nWindowPosX = 100;
+	m_pRenderModels = (vr::IVRRenderModels *)vr::VR_GetGenericInterface( vr::IVRRenderModels_Version, &eError );
+	if( !m_pRenderModels )
+	{
+		m_pHMD = NULL;
+		vr::VR_Shutdown();
+
+		char buf[1024];
+		sprintf_s( buf, sizeof( buf ), "Unable to get render model interface: %s", vr::VR_GetVRInitErrorAsEnglishDescription( eError ) );
+		SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "VR_Init Failed", buf, NULL );
+		return false;
+	}
+
+	int nWindowPosX = 700;
 	int nWindowPosY = 100;
 	Uint32 unWindowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
 
@@ -172,8 +184,8 @@ bool CMainApplication::BInit()
 	m_strDriver = "No Driver";
 	m_strDisplay = "No Display";
 
-	m_strDriver = GetTrackedDeviceString( vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_TrackingSystemName_String );
-	m_strDisplay = GetTrackedDeviceString( vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_SerialNumber_String );
+	m_strDriver = GetTrackedDeviceString( m_pHMD, vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_TrackingSystemName_String );
+	m_strDisplay = GetTrackedDeviceString( m_pHMD, vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_SerialNumber_String );
 
 	std::string strWindowTitle = "hellovr - " + m_strDriver + " " + m_strDisplay;
 	SDL_SetWindowTitle( m_pCompanionWindow, strWindowTitle.c_str() );
@@ -206,23 +218,6 @@ bool CMainApplication::BInit()
 		printf("%s - Failed to initialize VR Compositor!\n", __FUNCTION__);
 		return false;
 	}
-
-    vr::VRInput()->SetActionManifestPath( m_strActionManifestPath.c_str() );
-
-	vr::VRInput()->GetActionHandle( "/actions/demo/in/HideCubes", &m_actionHideCubes );
-	vr::VRInput()->GetActionHandle( "/actions/demo/in/HideThisController", &m_actionHideThisController);
-	vr::VRInput()->GetActionHandle( "/actions/demo/in/TriggerHaptic", &m_actionTriggerHaptic );
-	vr::VRInput()->GetActionHandle( "/actions/demo/in/AnalogInput", &m_actionAnalongInput );
-
-	vr::VRInput()->GetActionSetHandle( "/actions/demo", &m_actionsetDemo );
-
-	vr::VRInput()->GetActionHandle( "/actions/demo/out/Haptic_Left", &m_rHand[Left].m_actionHaptic );
-	vr::VRInput()->GetInputSourceHandle( "/user/hand/left", &m_rHand[Left].m_source );
-	vr::VRInput()->GetActionHandle( "/actions/demo/in/Hand_Left", &m_rHand[Left].m_actionPose );
-
-	vr::VRInput()->GetActionHandle( "/actions/demo/out/Haptic_Right", &m_rHand[Right].m_actionHaptic );
-	vr::VRInput()->GetInputSourceHandle( "/user/hand/right", &m_rHand[Right].m_source );
-	vr::VRInput()->GetActionHandle( "/actions/demo/in/Hand_Right", &m_rHand[Right].m_actionPose );
 
 	return true;
 }
@@ -262,6 +257,7 @@ bool CMainApplication::BInitGL()
 	SetupCameras();
 	SetupStereoRenderTargets();
 	SetupCompanionWindow();
+	SetupRenderModels();
 
 	return true;
 }
@@ -404,74 +400,13 @@ bool CMainApplication::HandleInput()
 		ProcessVREvent( event );
 	}
 
-	// Process SteamVR action state
-	// UpdateActionState is called each frame to update the state of the actions themselves. The application
-	// controls which action sets are active with the provided array of VRActiveActionSet_t structs.
-	vr::VRActiveActionSet_t actionSet = { 0 };
-	actionSet.ulActionSet = m_actionsetDemo;
-	vr::VRInput()->UpdateActionState( &actionSet, sizeof(actionSet), 1 );
-
-	m_bShowCubes = !GetDigitalActionState( m_actionHideCubes );
-
-	vr::VRInputValueHandle_t ulHapticDevice;
-	if ( GetDigitalActionRisingEdge( m_actionTriggerHaptic, &ulHapticDevice ) )
+	// Process SteamVR controller state
+	for( vr::TrackedDeviceIndex_t unDevice = 0; unDevice < vr::k_unMaxTrackedDeviceCount; unDevice++ )
 	{
-		if ( ulHapticDevice == m_rHand[Left].m_source )
+		vr::VRControllerState_t state;
+		if( m_pHMD->GetControllerState( unDevice, &state, sizeof(state) ) )
 		{
-			vr::VRInput()->TriggerHapticVibrationAction( m_rHand[Left].m_actionHaptic, 0, 1, 4.f, 1.0f );
-		}
-		if ( ulHapticDevice == m_rHand[Right].m_source )
-		{
-			vr::VRInput()->TriggerHapticVibrationAction( m_rHand[Right].m_actionHaptic, 0, 1, 4.f, 1.0f );
-		}
-	}
-
-	vr::InputAnalogActionData_t analogData;
-	if ( vr::VRInput()->GetAnalogActionData( m_actionAnalongInput, &analogData, sizeof( analogData ) ) == vr::VRInputError_None && analogData.bActive )
-	{
-		m_vAnalogValue[0] = analogData.x;
-		m_vAnalogValue[1] = analogData.y;
-	}
-
-	m_rHand[Left].m_bShowController = true;
-    m_rHand[Right].m_bShowController = true;
-
-	vr::VRInputValueHandle_t ulHideDevice;
-	if ( GetDigitalActionState( m_actionHideThisController, &ulHideDevice ) )
-	{
-		if ( ulHideDevice == m_rHand[Left].m_source )
-		{
-            m_rHand[Left].m_bShowController = false;
-		}
-		if ( ulHideDevice == m_rHand[Right].m_source )
-		{
-            m_rHand[Right].m_bShowController = false;
-		}
-	}
-
-	for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
-	{
-        vr::InputPoseActionData_t poseData;
-        if ( vr::VRInput()->GetPoseActionData( m_rHand[eHand].m_actionPose, vr::TrackingUniverseStanding, 0, &poseData, sizeof( poseData ) ) != vr::VRInputError_None
-            || !poseData.bActive || !poseData.pose.bPoseIsValid )
-		{
-            m_rHand[eHand].m_bShowController = false;
-		}
-		else
-		{
-			m_rHand[eHand].m_rmat4Pose = ConvertSteamVRMatrixToMatrix4( poseData.pose.mDeviceToAbsoluteTracking );
-
-			vr::InputOriginInfo_t originInfo;
-			if ( vr::VRInput()->GetOriginTrackedDeviceInfo( poseData.activeOrigin, &originInfo, sizeof( originInfo ) ) == vr::VRInputError_None 
-				&& originInfo.trackedDeviceIndex != vr::k_unTrackedDeviceIndexInvalid )
-			{
-				std::string sRenderModelName = GetTrackedDeviceString( originInfo.trackedDeviceIndex, vr::Prop_RenderModelName_String );
-				if ( sRenderModelName != m_rHand[eHand].m_sRenderModelName )
-				{
-					m_rHand[eHand].m_pRenderModel = FindOrLoadRenderModel( sRenderModelName.c_str() );
-					m_rHand[eHand].m_sRenderModelName = sRenderModelName;
-				}
-			}
+			m_rbShowTrackedDevice[ unDevice ] = state.ulButtonPressed == 0;
 		}
 	}
 
@@ -506,6 +441,12 @@ void CMainApplication::ProcessVREvent( const vr::VREvent_t & event )
 {
 	switch( event.eventType )
 	{
+	case vr::VREvent_TrackedDeviceActivated:
+		{
+			SetupRenderModelForTrackedDevice( event.trackedDeviceIndex );
+			dprintf( "Device %u attached. Setting up render model.\n", event.trackedDeviceIndex );
+		}
+		break;
 	case vr::VREvent_TrackedDeviceDeactivated:
 		{
 			dprintf( "Device %u detached.\n", event.trackedDeviceIndex );
@@ -708,37 +649,395 @@ bool CMainApplication::CreateAllShaders()
 		return false;
 	}
 
-	m_unRenderModelProgramID = CompileGLShader( 
+
+
+    m_unRenderModelProgramID = CompileGLShader(
+        "render model",
+
+        // vertex shader
+        "#version 410\n"
+        "uniform mat4 matrix;\n"
+        "layout(location = 0) in vec4 position;\n"
+        "layout(location = 1) in vec3 v3NormalIn;\n"
+        "layout(location = 2) in vec2 v2TexCoordsIn;\n"
+        "out vec2 v2TexCoord;\n"
+        "void main()\n"
+        "{\n"
+        "	v2TexCoord = v2TexCoordsIn;\n"
+        "	gl_Position = matrix * vec4(position.xyz, 1);\n"
+        "}\n",
+
+        //fragment shader
+        "#version 410 core\n"
+        "uniform sampler2D diffuse;\n"
+        "in vec2 v2TexCoord;\n"
+        "out vec4 outputColor;\n"
+        "void main()\n"
+        "{\n"
+        "   outputColor = texture( diffuse, v2TexCoord);\n"
+        "}\n"
+
+        );
+    m_nRenderModelMatrixLocation = glGetUniformLocation( m_unRenderModelProgramID, "matrix" );
+    if( m_nRenderModelMatrixLocation == -1 )
+    {
+        dprintf( "Unable to find matrix uniform in render model shader\n" );
+        return false;
+    }
+
+    m_unLitRGBModelProgramID = CompileGLShader(
 		"render model",
 
 		// vertex shader
-		"#version 410\n"
-		"uniform mat4 matrix;\n"
-		"layout(location = 0) in vec4 position;\n"
-		"layout(location = 1) in vec3 v3NormalIn;\n"
-		"layout(location = 2) in vec2 v2TexCoordsIn;\n"
-		"out vec2 v2TexCoord;\n"
+		"#version 330\n"
+		"\n"
+		"layout (location = 0) in vec3 Position;\n"
+		"layout (location = 1) in vec3 Normal;\n"
+		"layout (location = 2) in vec3 v3ColorIn;\n"
+		"\n"
+		"uniform mat4 gWVP;\n"
+		"uniform mat4 gWorld;\n"
+		"\n"
+		"out vec4 v4Color;\n"
+		"out vec3 Normal0;\n"
+		"out vec3 WorldPos0;\n"
+		"\n"
 		"void main()\n"
 		"{\n"
-		"	v2TexCoord = v2TexCoordsIn;\n"
-		"	gl_Position = matrix * vec4(position.xyz, 1);\n"
+		" gl_Position = gWVP * vec4(Position, 1.0);\n"
+		" v4Color = vec4(v3ColorIn, 1.0);\n"
+		" Normal0 = (gWorld * vec4(Normal, 0.0)).xyz;\n"
+		" WorldPos0 = (gWorld * vec4(Position, 1.0)).xyz;\n"
 		"}\n",
 
 		//fragment shader
-		"#version 410 core\n"
-		"uniform sampler2D diffuse;\n"
-		"in vec2 v2TexCoord;\n"
-		"out vec4 outputColor;\n"
+		"#version 330\n"
+		"\n"
+		"const int MAX_POINT_LIGHTS = 2;\n"
+		"const int MAX_SPOT_LIGHTS = 2;\n"
+		"\n"
+		"in vec4 v4Color;\n"
+		"in vec3 Normal0;\n"
+		"in vec3 WorldPos0;\n"
+		"\n"
+		"out vec4 FragColor;\n"
+		"\n"
+		"struct BaseLight\n"
+		"{\n"
+		" vec3 Color;\n"
+		" float AmbientIntensity;\n"
+		" float DiffuseIntensity;\n"
+		"};\n"
+		"\n"
+		"struct DirectionalLight\n"
+		"{\n"
+		" BaseLight Base;\n"
+		" vec3 Direction;\n"
+		"};\n"
+		"\n"
+		"struct Attenuation\n"
+		"{\n"
+		" float Constant;\n"
+		" float Linear;\n"
+		" float Exp;\n"
+		"};\n"
+		"\n"
+		"struct PointLight\n"
+		"{\n"
+		" BaseLight Base;\n"
+		" vec3 Position;\n"
+		" Attenuation Atten;\n"
+		"};\n"
+		"\n"
+		"struct SpotLight\n"
+		"{\n"
+		" PointLight Base;\n"
+		" vec3 Direction;\n"
+		" float Cutoff;\n"
+		"};\n"
+		"\n"
+		"uniform int gNumPointLights;\n"
+		"uniform int gNumSpotLights;\n"
+		"uniform DirectionalLight gDirectionalLight;\n"
+		"uniform PointLight gPointLights[MAX_POINT_LIGHTS];\n"
+		"uniform SpotLight gSpotLights[MAX_SPOT_LIGHTS];\n"
+		"uniform sampler2D gColorMap;\n"
+		"uniform vec3 gEyeWorldPos;\n"
+		"uniform float gMatSpecularIntensity;\n"
+		"uniform float gSpecularPower;\n"
+		"\n"
+		"vec4 CalcLightInternal(BaseLight Light, vec3 LightDirection, vec3 Normal)\n"
+		"{\n"
+		" vec4 AmbientColor = vec4(Light.Color * Light.AmbientIntensity, 1.0f);\n"
+		" float DiffuseFactor = dot(Normal, -LightDirection);\n"
+		"\n"
+		" vec4 DiffuseColor = vec4(0, 0, 0, 0);\n"
+		" vec4 SpecularColor = vec4(0, 0, 0, 0);\n"
+		"\n"
+		" if (DiffuseFactor > 0) {\n"
+		" DiffuseColor = vec4(Light.Color * Light.DiffuseIntensity * DiffuseFactor, 1.0f);\n"
+		"\n"
+		" vec3 VertexToEye = normalize(gEyeWorldPos - WorldPos0);\n"
+		" vec3 LightReflect = normalize(reflect(LightDirection, Normal));\n"
+		" float SpecularFactor = dot(VertexToEye, LightReflect);\n"
+		" if (SpecularFactor > 0) {\n"
+		" SpecularFactor = pow(SpecularFactor, gSpecularPower);\n"
+		" SpecularColor = vec4(Light.Color * gMatSpecularIntensity * SpecularFactor, 1.0f);\n"
+		" }\n"
+		" }\n"
+		"\n"
+		" return (AmbientColor + DiffuseColor + SpecularColor);\n"
+		"}\n"
+		"\n"
+		"vec4 CalcDirectionalLight(vec3 Normal)\n"
+		"{\n"
+		" return CalcLightInternal(gDirectionalLight.Base, gDirectionalLight.Direction, Normal);\n"
+		"}\n"
+		"\n"
+		"vec4 CalcPointLight(PointLight l, vec3 Normal)\n"
+		"{\n"
+		" vec3 LightDirection = WorldPos0 - l.Position;\n"
+		" float Distance = length(LightDirection);\n"
+		" LightDirection = normalize(LightDirection);\n"
+		"\n"
+		" vec4 Color = CalcLightInternal(l.Base, LightDirection, Normal);\n"
+		" float Attenuation = l.Atten.Constant +\n"
+		" l.Atten.Linear * Distance +\n"
+		" l.Atten.Exp * Distance * Distance;\n"
+		"\n"
+		" return Color / Attenuation;\n"
+		"}\n"
+		"\n"
+		"vec4 CalcSpotLight(SpotLight l, vec3 Normal)\n"
+		"{\n"
+		" vec3 LightToPixel = normalize(WorldPos0 - l.Base.Position);\n"
+		" float SpotFactor = dot(LightToPixel, l.Direction);\n"
+		"\n"
+		" if (SpotFactor > l.Cutoff) {\n"
+		" vec4 Color = CalcPointLight(l.Base, Normal);\n"
+		" return Color * (1.0 - (1.0 - SpotFactor) * 1.0/(1.0 - l.Cutoff));\n"
+		" }\n"
+		" else {\n"
+		" return vec4(0,0,0,0);\n"
+		" }\n"
+		"}\n"
+		"\n"
 		"void main()\n"
 		"{\n"
-		"   outputColor = texture( diffuse, v2TexCoord);\n"
+		" vec3 Normal = normalize(Normal0);\n"
+		" vec4 TotalLight = CalcDirectionalLight(Normal);\n"
+		"\n"
+		" for (int i = 0 ; i < gNumPointLights ; i++) {\n"
+		" TotalLight += CalcPointLight(gPointLights[i], Normal);\n"
+		" }\n"
+		"\n"
+		" for (int i = 0 ; i < gNumSpotLights ; i++) {\n"
+		" TotalLight += CalcSpotLight(gSpotLights[i], Normal);\n"
+		" }\n"
+		"\n"
+		" FragColor = v4Color * TotalLight;\n"
 		"}\n"
 
 		);
-	m_nRenderModelMatrixLocation = glGetUniformLocation( m_unRenderModelProgramID, "matrix" );
-	if( m_nRenderModelMatrixLocation == -1 )
+
+    m_nLitRGBModelMatrixLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gWVP");
+    m_WorldMatrixRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gWorld");
+    m_colorTextureRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gColorMap");
+    m_eyeWorldPosRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gEyeWorldPos");
+    m_dirLightRGBLocation.Color = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.Color");
+    m_dirLightRGBLocation.AmbientIntensity = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.AmbientIntensity");
+    m_dirLightRGBLocation.Direction = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Direction");
+    m_dirLightRGBLocation.DiffuseIntensity = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.DiffuseIntensity");
+    m_matSpecularIntensityRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gMatSpecularIntensity");
+    m_matSpecularPowerRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gSpecularPower");
+    m_numPointLightsRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gNumPointLights");
+    m_numSpotLightsRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gNumSpotLights");
+
+
+
+    if( m_nLitRGBModelMatrixLocation == -1 )
 	{
-		dprintf( "Unable to find matrix uniform in render model shader\n" );
+		dprintf( "Unable to find matrix uniform in render rgb model shader\n" );
+		return false;
+	}
+
+
+
+
+    m_unLitModelProgramID = CompileGLShader(
+		"render model",
+
+		// vertex shader
+		"#version 330\n"
+		"\n"
+		"layout (location = 0) in vec3 Position;\n"
+		"layout (location = 1) in vec3\n"
+		"Normal;\n"
+		"layout (location = 2) in vec2 TexCoord;\n"
+		"\n"
+		"uniform mat4 gWVP;\n"
+		"uniform mat4 gWorld;\n"
+		"\n"
+		"out vec2 TexCoord0;\n"
+		"out vec3 Normal0;\n"
+		"out vec3 WorldPos0;\n"
+		"\n"
+		"void main()\n"
+		"{\n"
+		" gl_Position = gWVP * vec4(Position, 1.0);\n"
+		" TexCoord0 = TexCoord;\n"
+		" Normal0 = (gWorld * vec4(Normal, 0.0)).xyz;\n"
+		" WorldPos0 = (gWorld * vec4(Position, 1.0)).xyz;\n"
+		"}\n",
+
+		//fragment shader
+		"#version 330\n"
+		"\n"
+		"const int MAX_POINT_LIGHTS = 2;\n"
+		"const int MAX_SPOT_LIGHTS = 2;\n"
+		"\n"
+		"in vec2 TexCoord0;\n"
+		"in vec3 Normal0;\n"
+		"in vec3 WorldPos0;\n"
+		"\n"
+		"out vec4 FragColor;\n"
+		"\n"
+		"struct BaseLight\n"
+		"{\n"
+		" vec3 Color;\n"
+		" float AmbientIntensity;\n"
+		" float DiffuseIntensity;\n"
+		"};\n"
+		"\n"
+		"struct DirectionalLight\n"
+		"{\n"
+		" BaseLight Base;\n"
+		" vec3 Direction;\n"
+		"};\n"
+		"\n"
+		"struct Attenuation\n"
+		"{\n"
+		" float Constant;\n"
+		" float Linear;\n"
+		" float Exp;\n"
+		"};\n"
+		"\n"
+		"struct PointLight\n"
+		"{\n"
+		" BaseLight Base;\n"
+		" vec3 Position;\n"
+		" Attenuation Atten;\n"
+		"};\n"
+		"\n"
+		"struct SpotLight\n"
+		"{\n"
+		" PointLight Base;\n"
+		" vec3 Direction;\n"
+		" float Cutoff;\n"
+		"};\n"
+		"\n"
+		"uniform int gNumPointLights;\n"
+		"uniform int gNumSpotLights;\n"
+		"uniform DirectionalLight gDirectionalLight;\n"
+		"uniform PointLight gPointLights[MAX_POINT_LIGHTS];\n"
+		"uniform SpotLight gSpotLights[MAX_SPOT_LIGHTS];\n"
+		"uniform sampler2D gColorMap;\n"
+		"uniform vec3 gEyeWorldPos;\n"
+		"uniform float gMatSpecularIntensity;\n"
+		"uniform float gSpecularPower;\n"
+		"\n"
+		"vec4 CalcLightInternal(BaseLight Light, vec3 LightDirection, vec3 Normal)\n"
+		"{\n"
+		" vec4 AmbientColor = vec4(Light.Color * Light.AmbientIntensity, 1.0f);\n"
+		" float DiffuseFactor = dot(Normal, -LightDirection);\n"
+		"\n"
+		" vec4 DiffuseColor = vec4(0, 0, 0, 0);\n"
+		" vec4 SpecularColor = vec4(0, 0, 0, 0);\n"
+		"\n"
+		" if (DiffuseFactor > 0) {\n"
+		" DiffuseColor = vec4(Light.Color * Light.DiffuseIntensity * DiffuseFactor, 1.0f);\n"
+		"\n"
+		" vec3 VertexToEye = normalize(gEyeWorldPos - WorldPos0);\n"
+		" vec3 LightReflect = normalize(reflect(LightDirection, Normal));\n"
+		" float SpecularFactor = dot(VertexToEye, LightReflect);\n"
+		" if (SpecularFactor > 0) {\n"
+		" SpecularFactor = pow(SpecularFactor, gSpecularPower);\n"
+		" SpecularColor = vec4(Light.Color * gMatSpecularIntensity * SpecularFactor, 1.0f);\n"
+		" }\n"
+		" }\n"
+		"\n"
+		" return (AmbientColor + DiffuseColor + SpecularColor);\n"
+		"}\n"
+		"\n"
+		"vec4 CalcDirectionalLight(vec3 Normal)\n"
+		"{\n"
+		" return CalcLightInternal(gDirectionalLight.Base, gDirectionalLight.Direction, Normal);\n"
+		"}\n"
+		"\n"
+		"vec4 CalcPointLight(PointLight l, vec3 Normal)\n"
+		"{\n"
+		" vec3 LightDirection = WorldPos0 - l.Position;\n"
+		" float Distance = length(LightDirection);\n"
+		" LightDirection = normalize(LightDirection);\n"
+		"\n"
+		" vec4 Color = CalcLightInternal(l.Base, LightDirection, Normal);\n"
+		" float Attenuation = l.Atten.Constant +\n"
+		" l.Atten.Linear * Distance +\n"
+		" l.Atten.Exp * Distance * Distance;\n"
+		"\n"
+		" return Color / Attenuation;\n"
+		"}\n"
+		"\n"
+		"vec4 CalcSpotLight(SpotLight l, vec3 Normal)\n"
+		"{\n"
+		" vec3 LightToPixel = normalize(WorldPos0 - l.Base.Position);\n"
+		" float SpotFactor = dot(LightToPixel, l.Direction);\n"
+		"\n"
+		" if (SpotFactor > l.Cutoff) {\n"
+		" vec4 Color = CalcPointLight(l.Base, Normal);\n"
+		" return Color * (1.0 - (1.0 - SpotFactor) * 1.0/(1.0 - l.Cutoff));\n"
+		" }\n"
+		" else {\n"
+		" return vec4(0,0,0,0);\n"
+		" }\n"
+		"}\n"
+		"\n"
+		"void main()\n"
+		"{\n"
+		" vec3 Normal = normalize(Normal0);\n"
+		" vec4 TotalLight = CalcDirectionalLight(Normal);\n"
+		"\n"
+		" for (int i = 0 ; i < gNumPointLights ; i++) {\n"
+		" TotalLight += CalcPointLight(gPointLights[i], Normal);\n"
+		" }\n"
+		"\n"
+		" for (int i = 0 ; i < gNumSpotLights ; i++) {\n"
+		" TotalLight += CalcSpotLight(gSpotLights[i], Normal);\n"
+		" }\n"
+		"\n"
+		" FragColor = texture(gColorMap, TexCoord0.xy) * TotalLight;\n"
+		"}\n"
+
+		);
+
+    m_nLitModelMatrixLocation = glGetUniformLocation( m_unLitModelProgramID, "gWVP");
+    m_WorldMatrixLocation = glGetUniformLocation( m_unLitModelProgramID, "gWorld");
+    m_colorTextureLocation = glGetUniformLocation( m_unLitModelProgramID, "gColorMap");
+    m_eyeWorldPosLocation = glGetUniformLocation( m_unLitModelProgramID, "gEyeWorldPos");
+    m_dirLightLocation.Color = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.Color");
+    m_dirLightLocation.AmbientIntensity = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.AmbientIntensity");
+    m_dirLightLocation.Direction = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Direction");
+    m_dirLightLocation.DiffuseIntensity = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.DiffuseIntensity");
+    m_matSpecularIntensityLocation = glGetUniformLocation( m_unLitModelProgramID, "gMatSpecularIntensity");
+    m_matSpecularPowerLocation = glGetUniformLocation( m_unLitModelProgramID, "gSpecularPower");
+    m_numPointLightsLocation = glGetUniformLocation( m_unLitModelProgramID, "gNumPointLights");
+    m_numSpotLightsLocation = glGetUniformLocation( m_unLitModelProgramID, "gNumSpotLights");
+
+
+
+    if( m_nLitModelMatrixLocation == -1 )
+	{
+        dprintf( "Unable to find matrix uniform in lit model shader\n" );
 		return false;
 	}
 
@@ -957,12 +1256,20 @@ void CMainApplication::RenderControllerAxes()
 	m_uiControllerVertcount = 0;
 	m_iTrackedControllerCount = 0;
 
-	for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
+	for ( vr::TrackedDeviceIndex_t unTrackedDevice = vr::k_unTrackedDeviceIndex_Hmd + 1; unTrackedDevice < vr::k_unMaxTrackedDeviceCount; ++unTrackedDevice )
 	{
-		if ( !m_rHand[eHand].m_bShowController )
+		if ( !m_pHMD->IsTrackedDeviceConnected( unTrackedDevice ) )
 			continue;
 
-		const Matrix4 & mat = m_rHand[eHand].m_rmat4Pose;
+		if( m_pHMD->GetTrackedDeviceClass( unTrackedDevice ) != vr::TrackedDeviceClass_Controller )
+			continue;
+
+		m_iTrackedControllerCount += 1;
+
+		if( !m_rTrackedDevicePose[ unTrackedDevice ].bPoseIsValid )
+			continue;
+
+		const Matrix4 & mat = m_rmat4DevicePose[unTrackedDevice];
 
 		Vector4 center = mat * Vector4( 0, 0, 0, 1 );
 
@@ -1256,40 +1563,92 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 	// ----- Render Model rendering -----
 	glUseProgram( m_unRenderModelProgramID );
 
-	for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
-    {
-        if ( !m_rHand[eHand].m_bShowController || !m_rHand[eHand].m_pRenderModel )
-            continue;
+	for( uint32_t unTrackedDevice = 0; unTrackedDevice < vr::k_unMaxTrackedDeviceCount; unTrackedDevice++ )
+	{
+		if( !m_rTrackedDeviceToRenderModel[ unTrackedDevice ] || !m_rbShowTrackedDevice[ unTrackedDevice ] )
+			continue;
 
-		const Matrix4 & matDeviceToTracking = m_rHand[eHand].m_rmat4Pose;
+		const vr::TrackedDevicePose_t & pose = m_rTrackedDevicePose[ unTrackedDevice ];
+		if( !pose.bPoseIsValid )
+			continue;
+
+		if( !bIsInputAvailable && m_pHMD->GetTrackedDeviceClass( unTrackedDevice ) == vr::TrackedDeviceClass_Controller )
+			continue;
+
+		const Matrix4 & matDeviceToTracking = m_rmat4DevicePose[ unTrackedDevice ];
 		Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * matDeviceToTracking;
 		glUniformMatrix4fv( m_nRenderModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
 
-		m_rHand[eHand].m_pRenderModel->Draw();
+		m_rTrackedDeviceToRenderModel[ unTrackedDevice ]->Draw();
 	}
+
 
     for(int idx=0;idx<robot_meshes.size();idx++){
 
         //robot_meshes[idx]->Render();
         for(int jj=0;jj<robot_meshes[idx]->m_Entries.size();jj++){
+            bool mesh_has_texture=true;
+            if(mesh_has_texture){
 
-            //ROS_INFO("Rendering %s, NI=%d",robot_meshes[idx]->name.c_str(),robot_meshes[idx]->m_Entries[jj].NumIndices);
+                //ROS_INFO("Rendering %s, NI=%d",robot_meshes[idx]->name.c_str(),robot_meshes[idx]->m_Entries[jj].NumIndices);
 
-            // ----- Render Model rendering -----
-            glUseProgram( m_unRenderModelProgramID );
+                // ----- Render Model rendering -----
+                glUseProgram( m_unLitModelProgramID );
 
-            Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->name);
-            glUniformMatrix4fv( m_nRenderModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
+                Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->name);
+                Matrix4 matWorld = GetRobotMatrixPose(robot_meshes[idx]->name) ;
+                Vector4 eyePos = GetHMDMatrixPoseEye(nEye)*Vector4(0,0,0,1);
+                glUniformMatrix4fv( m_nLitModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
 
-            glBindVertexArray( robot_meshes[idx]->m_Entries[jj].VA );
+                glUniformMatrix4fv( m_WorldMatrixLocation, 1, GL_FALSE, matWorld.get() );
+                glUniform3f(m_eyeWorldPosLocation, eyePos.x,eyePos.y,eyePos.z);
+                glUniform1i(m_colorTextureLocation, 0);
+                glUniform3f(m_dirLightLocation.Color, 1.0,1.0,1.0);
+                glUniform1f(m_dirLightLocation.AmbientIntensity, 0.15);
+                glUniform3f(m_dirLightLocation.Direction, 0.0, -0.70710678118, -0.70710678118);
+                glUniform1f(m_dirLightLocation.DiffuseIntensity, 0.5);
+                glUniform1i(m_numPointLightsLocation, 0);
+                glUniform1i(m_numSpotLightsLocation, 0);
 
-            robot_meshes[idx]->m_Textures[jj]->Bind(GL_TEXTURE0);
+                glBindVertexArray( robot_meshes[idx]->m_Entries[jj].VA );
 
-            glDrawElements( GL_TRIANGLES, robot_meshes[idx]->m_Entries[jj].NumIndices, GL_UNSIGNED_SHORT, 0 );
+                robot_meshes[idx]->m_Textures[jj]->Bind(GL_TEXTURE0);
 
-            glBindVertexArray( 0 );
+                glDrawElements( GL_TRIANGLES, robot_meshes[idx]->m_Entries[jj].NumIndices, GL_UNSIGNED_INT, 0 );
 
-            glUseProgram( 0 );
+                glBindVertexArray( 0 );
+
+                glUseProgram( 0 );
+            }else{
+
+                // ----- Render Model rendering -----
+                glUseProgram( m_unLitRGBModelProgramID );
+
+                Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->name);
+                Matrix4 matWorld = GetRobotMatrixPose(robot_meshes[idx]->name) ;
+                Vector4 eyePos = GetHMDMatrixPoseEye(nEye)*Vector4(0,0,0,1);
+                glUniformMatrix4fv( m_nLitRGBModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
+
+                glUniformMatrix4fv( m_WorldMatrixRGBLocation, 1, GL_FALSE, matWorld.get() );
+                glUniform3f(m_eyeWorldPosRGBLocation, eyePos.x,eyePos.y,eyePos.z);
+                glUniform1i(m_colorTextureRGBLocation, 0);
+                glUniform3f(m_dirLightRGBLocation.Color, 1.0,1.0,1.0);
+                glUniform1f(m_dirLightRGBLocation.AmbientIntensity, 0.15);
+                glUniform3f(m_dirLightRGBLocation.Direction, 0.0, -0.70710678118, -0.70710678118);
+                glUniform1f(m_dirLightRGBLocation.DiffuseIntensity, 0.5);
+                glUniform1i(m_numPointLightsRGBLocation, 0);
+                glUniform1i(m_numSpotLightsRGBLocation, 0);
+
+                glBindVertexArray( robot_meshes[idx]->m_Entries[jj].VA );
+
+                robot_meshes[idx]->m_Textures[jj]->Bind(GL_TEXTURE0);
+
+                glDrawElements( GL_TRIANGLES, robot_meshes[idx]->m_Entries[jj].NumIndices, GL_UNSIGNED_INT, 0 );
+
+                glBindVertexArray( 0 );
+
+                glUseProgram( 0 );
+            }
         }
     }
 
@@ -1373,7 +1732,7 @@ Matrix4 CMainApplication::GetHMDMatrixPoseEye( vr::Hmd_Eye nEye )
 //-----------------------------------------------------------------------------
 Matrix4 CMainApplication::GetRobotMatrixPose( std::string frame_name )
 {
-    return Matrix4().identity();
+	return Matrix4().identity();
 }
 
 
@@ -1510,6 +1869,51 @@ CGLRenderModel *CMainApplication::FindOrLoadRenderModel( const char *pchRenderMo
 
 
 //-----------------------------------------------------------------------------
+// Purpose: Create/destroy GL a Render Model for a single tracked device
+//-----------------------------------------------------------------------------
+void CMainApplication::SetupRenderModelForTrackedDevice( vr::TrackedDeviceIndex_t unTrackedDeviceIndex )
+{
+	if( unTrackedDeviceIndex >= vr::k_unMaxTrackedDeviceCount )
+		return;
+
+	// try to find a model we've already set up
+	std::string sRenderModelName = GetTrackedDeviceString( m_pHMD, unTrackedDeviceIndex, vr::Prop_RenderModelName_String );
+	CGLRenderModel *pRenderModel = FindOrLoadRenderModel( sRenderModelName.c_str() );
+	if( !pRenderModel )
+	{
+		std::string sTrackingSystemName = GetTrackedDeviceString( m_pHMD, unTrackedDeviceIndex, vr::Prop_TrackingSystemName_String );
+		dprintf( "Unable to load render model for tracked device %d (%s.%s)", unTrackedDeviceIndex, sTrackingSystemName.c_str(), sRenderModelName.c_str() );
+	}
+	else
+	{
+		m_rTrackedDeviceToRenderModel[ unTrackedDeviceIndex ] = pRenderModel;
+		m_rbShowTrackedDevice[ unTrackedDeviceIndex ] = true;
+	}
+}
+
+
+//-----------------------------------------------------------------------------
+// Purpose: Create/destroy GL Render Models
+//-----------------------------------------------------------------------------
+void CMainApplication::SetupRenderModels()
+{
+	memset( m_rTrackedDeviceToRenderModel, 0, sizeof( m_rTrackedDeviceToRenderModel ) );
+
+	if( !m_pHMD )
+		return;
+
+	for( uint32_t unTrackedDevice = vr::k_unTrackedDeviceIndex_Hmd + 1; unTrackedDevice < vr::k_unMaxTrackedDeviceCount; unTrackedDevice++ )
+	{
+		if( !m_pHMD->IsTrackedDeviceConnected( unTrackedDevice ) )
+			continue;
+
+		SetupRenderModelForTrackedDevice( unTrackedDevice );
+	}
+
+}
+
+
+//-----------------------------------------------------------------------------
 // Purpose: Converts a SteamVR matrix to our local matrix class
 //-----------------------------------------------------------------------------
 Matrix4 CMainApplication::ConvertSteamVRMatrixToMatrix4( const vr::HmdMatrix34_t &matPose )
@@ -1568,7 +1972,7 @@ bool CGLRenderModel::BInit( const vr::RenderModel_t & vrModel, const vr::RenderM
 	// Create and populate the index buffer
 	glGenBuffers( 1, &m_glIndexBuffer );
 	glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, m_glIndexBuffer );
-	glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( uint16_t ) * vrModel.unTriangleCount * 3, vrModel.rIndexData, GL_STATIC_DRAW );
+    glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( uint16_t ) * vrModel.unTriangleCount * 3, vrModel.rIndexData, GL_STATIC_DRAW );
 
 	glBindVertexArray( 0 );
 
@@ -1621,12 +2025,12 @@ void CGLRenderModel::Cleanup()
 //-----------------------------------------------------------------------------
 void CGLRenderModel::Draw()
 {
-    glBindVertexArray( m_glVertArray );
+	glBindVertexArray( m_glVertArray );
 
 	glActiveTexture( GL_TEXTURE0 );
 	glBindTexture( GL_TEXTURE_2D, m_glTexture );
 
-	glDrawElements( GL_TRIANGLES, m_unVertexCount, GL_UNSIGNED_SHORT, 0 );
+    glDrawElements( GL_TRIANGLES, m_unVertexCount, GL_UNSIGNED_SHORT, 0 );
 
 	glBindVertexArray( 0 );
 }

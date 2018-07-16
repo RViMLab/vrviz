@@ -63,6 +63,7 @@ std::string texture_filename = "/texture_map.png";
 std::string fallback_texture_filename = "/fallback_texture.png";
 std::string texture_character_map=" !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_";
 std::string base_frame = "vrviz_base";
+std::string intermediate_frame = "vrviz_intermediate";
 std::string frame_prefix = base_frame;
 float hud_dist=1.0;///!< meters; distance that the head's up display will appear away
 float hud_size=2.0;///!< Radians; How much
@@ -75,7 +76,7 @@ bool show_grid=true;
 
 /// This is a flag that tells the VR code that we have new ROS data
 /// \todo This should be a semaphore or mutex
-volatile bool scene_update_needed=false;
+volatile bool scene_update_needed=true;
 
 #ifdef USE_VULKAN
 #else
@@ -111,6 +112,11 @@ private:
     Matrix4 previous_trans_mat;
     Matrix4 current_trans_mat;
     int pressed_id;
+    int move_id;
+    Matrix4 move_previous_trans_mat;
+    Matrix4 move_current_trans_mat;
+    Matrix4 move_trans_mat;
+    Matrix4 move_trans_mat_old;
     std::vector<tf_obj> tf_cache;
 
    public:
@@ -121,16 +127,24 @@ private:
     VRVizApplication( int argc, char *argv[] ): CMainApplication(argc,argv),
         m_iCylinderNumFacets(12),
         m_fAngle(1.f),
-        pressed_id(-1)
+        pressed_id(-1),
+        move_id(-1)
     {
 
         previous_trans.setIdentity();
+        move_trans_mat.identity();
+        move_trans_mat_old.identity();
 
         /// Start the tf_cache out with the base frame
         tf_obj base_frame_obj;
         base_frame_obj.frame_id=base_frame;
         base_frame_obj.transform=Matrix4().identity();
         tf_cache.push_back(base_frame_obj);
+
+        tf_obj intermediate_frame_obj;
+        intermediate_frame_obj.frame_id=intermediate_frame;
+        intermediate_frame_obj.transform=Matrix4().identity();
+        tf_cache.push_back(intermediate_frame_obj);
     }
 #ifdef USE_VULKAN
 /// \todo Setup overlay
@@ -222,10 +236,16 @@ private:
             for(int ii=0;ii<tf_cache.size();ii++){
                 add_frame_to_scene(tf_cache[ii].transform,vertdataarray,0.1);
             }
-        }if(pressed_id!=-1){
+        }
+        if(pressed_id!=-1){
             /// Show the frames we are using to calculate twist commands
             add_frame_to_scene(previous_trans_mat,vertdataarray,0.05);
             add_frame_to_scene(current_trans_mat ,vertdataarray,0.07);
+        }
+        if(move_id!=-1){
+            /// Show the frames we are using to move the scene
+            add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05);
+            add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07);
         }
         if(show_grid){
             add_grid_to_scene(vertdataarray);
@@ -719,6 +739,7 @@ private:
      */
     void add_grid_to_scene( std::vector<float> &vertdataarray, float cell_size=1.0, int plane_cell_count=10, Vector3 color=Vector3(0.627,0.627,0.627) ){
         cell_size*=scaling_factor;
+        Matrix4 mat=GetRobotMatrixPose(base_frame);
         for(int jj=0;jj<3;jj++){
             if(jj==1){jj++;}
             for(int ii=0;ii<plane_cell_count+1;ii++){
@@ -726,6 +747,8 @@ private:
                 Vector4 point2(  cell_size*plane_cell_count/2.0, 0, cell_size*plane_cell_count/2.0, 1 );
                 point1[jj]=-cell_size*plane_cell_count/2.0+ii*cell_size;
                 point2[jj]=-cell_size*plane_cell_count/2.0+ii*cell_size;
+                point1 = mat*point1;
+                point2 = mat*point2;
 
                 vertdataarray.push_back( point1.x );
                 vertdataarray.push_back( point1.y );
@@ -785,7 +808,7 @@ private:
         for(int ii=0;ii<tf_cache.size();ii++){
             tf::StampedTransform transform;
             try{
-              listener->lookupTransform(base_frame, tf_cache[ii].frame_id,
+              listener->lookupTransform(intermediate_frame, tf_cache[ii].frame_id,
                                        ros::Time(0), transform);
             }
             catch (tf::TransformException ex){
@@ -801,13 +824,14 @@ private:
 
         /// Broadcast the transform of the HMD relative to the base
         /// \note we invert this because in the GL code, the headset is the 'root' transform, since that's the render target, whereas for ROS we want the 'ground' to be the root
-        broadcaster->sendTransform(tf::StampedTransform(TfTransform(m_mat4HMDPose).inverse(), ros::Time::now(), base_frame, frame_prefix + "_hmd" ));
+        broadcaster->sendTransform(tf::StampedTransform(TfTransform(m_mat4HMDPose).inverse(), ros::Time::now(), intermediate_frame, frame_prefix + "_hmd" ));
 
         /// Publish the transform of the eyes relative to the base (I'm not sure why anyone would want them?)
         /// \todo these don't change, so we could store the transforms to not recalculate every timestep
 //        broadcaster->sendTransform(tf::StampedTransform(TfTransform(m_mat4eyePosLeft).inverse(), ros::Time::now(), frame_prefix + "_hmd", frame_prefix + "eye_left" ));
 //        broadcaster->sendTransform(tf::StampedTransform(TfTransform(m_mat4eyePosRight).inverse(), ros::Time::now(), frame_prefix + "_hmd", frame_prefix + "eye_right" ));
 
+        broadcaster->sendTransform(tf::StampedTransform(TfTransform(move_trans_mat),ros::Time::now(), base_frame, intermediate_frame));
 
         geometry_msgs::Twist twist_msg;
 
@@ -832,7 +856,7 @@ private:
             ss << frame_prefix << "_controller_" << controller_id;
             /// Publish the transform of the end effector relative to the base
             tf::Transform current_trans=TfTransform(mat);
-            broadcaster->sendTransform(tf::StampedTransform(current_trans, ros::Time::now(), base_frame, ss.str() ));
+            broadcaster->sendTransform(tf::StampedTransform(current_trans, ros::Time::now(), intermediate_frame, ss.str() ));
 
             if(controller_id<3){
                 sensor_msgs::Joy joy_msg;
@@ -864,7 +888,7 @@ private:
                     joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Axis3)));
                     joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Axis4)));
 
-                    if(( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Axis1))){
+                    if(( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Trigger))){
                         if(pressed_id==controller_id){
                             /// We already knew they pressed this trigger
                             /// So check to see how much has changed since then.
@@ -895,6 +919,28 @@ private:
                             pressed_id=-1;
                         }
                     }
+                    if(( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad))){
+                        if(move_id==controller_id){
+                            move_current_trans_mat  = mat;
+                            Matrix4 move_current_trans_mat_inverse = move_current_trans_mat;
+                            move_current_trans_mat_inverse.invert();
+                            move_trans_mat = move_trans_mat_old * (move_previous_trans_mat * move_current_trans_mat_inverse);
+                        }else if(move_id==-1){
+                            /// This is the first we have heard about this
+                            move_id=controller_id;
+                            move_previous_trans_mat=mat;
+                        }else{
+                            ROS_WARN_THROTTLE(2.0,"Please don't press both triggers simultaneously...");
+                        }
+                    }else{
+                        if(move_id==controller_id){
+                            /// We thought they pressed this trigger, but it appears not anymore
+                            move_id=-1;
+                            move_trans_mat_old = move_trans_mat;
+                        }
+                    }
+                }else{
+                    ROS_WARN_THROTTLE(2.0,"Error getting controller state");
                 }
 
                 controller_pub[controller_id].publish(joy_msg);
@@ -985,7 +1031,7 @@ private:
         }
         tf::StampedTransform transform;
         try{
-          listener->lookupTransform(base_frame, frame_name,
+          listener->lookupTransform(intermediate_frame, frame_name,
                                    ros::Time(0), transform);
         }
         catch (tf::TransformException ex){
@@ -1288,10 +1334,10 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
 
         if( asset.count("unit") != 0 ){
             float meter=asset.get<float>("unit.<xmlattr>.meter");
-            ROS_INFO_COND(verbose,"Found units, 1 unit=%f meters",meter);
-            myMesh->scale.x*=meter;
-            myMesh->scale.y*=meter;
-            myMesh->scale.z*=meter;
+//            myMesh->scale.x*=meter;
+//            myMesh->scale.y*=meter;
+//            myMesh->scale.z*=meter;
+            ROS_INFO_COND(verbose,"Found units, 1 unit=%f meters.  Sx=%f,Sy=%f,Sz=%f",meter,myMesh->scale.x,myMesh->scale.y,myMesh->scale.z);
         }else{
             ROS_WARN("no units found");
         }

@@ -42,7 +42,7 @@ Mesh::MeshEntry::~MeshEntry()
 }
 
 void Mesh::MeshEntry::Init(const std::vector<vr::RenderModel_Vertex_t>& Vertices,
-                          const std::vector<u_int16_t>& Indices)
+                          const std::vector<u_int32_t>& Indices)
 {
     NumIndices = Indices.size();
 
@@ -66,7 +66,7 @@ void Mesh::MeshEntry::Init(const std::vector<vr::RenderModel_Vertex_t>& Vertices
     // Create and populate the index buffer
     glGenBuffers( 1, &IB );
     glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, IB );
-    glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( u_int16_t ) * NumIndices, &Indices[0], GL_STATIC_DRAW );
+    glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( u_int32_t ) * NumIndices, &Indices[0], GL_STATIC_DRAW );
 
     glBindVertexArray( 0 );
 
@@ -158,7 +158,7 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
     m_Entries[Index].MaterialIndex = paiMesh->mMaterialIndex;
     
     std::vector<vr::RenderModel_Vertex_t> Vertices;
-    std::vector<u_int16_t> Indices;
+    std::vector<u_int32_t> Indices;
 
     const aiVector3D Zero3D(0.0f, 0.0f, 0.0f);
 

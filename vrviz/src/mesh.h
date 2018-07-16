@@ -83,7 +83,7 @@ public:
         ~MeshEntry();
 
         void Init(const std::vector<vr::RenderModel_Vertex_t>& Vertices,
-                  const std::vector<u_int16_t>& Indices);
+                  const std::vector<u_int32_t>& Indices);
 
         GLuint VB;
         GLuint VA;
