@@ -34,6 +34,17 @@
 #define INVALID_OGL_VALUE 0xffffffff
 
 
+namespace vr
+{
+/** A single vertex in a render model */
+struct RenderModel_Vertex_t_rgb
+{
+    HmdVector3_t vPosition;		// position in meters in device space
+    HmdVector3_t vNormal;
+    HmdVector3_t vColor;
+};
+}
+
 struct Vertex
 {
     Vector3 m_pos;
@@ -83,6 +94,8 @@ public:
         ~MeshEntry();
 
         void Init(const std::vector<vr::RenderModel_Vertex_t>& Vertices,
+                  const std::vector<u_int32_t>& Indices);
+        void Init(const std::vector<vr::RenderModel_Vertex_t_rgb>& Vertices,
                   const std::vector<u_int32_t>& Indices);
 
         GLuint VB;

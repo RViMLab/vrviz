@@ -1325,6 +1325,8 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
             if(up_axis_str=="Z_UP"){
                 ROS_INFO_COND(verbose,"Found Z_UP attribute, compensating");
                 myMesh->Z_UP=true;
+            }else if(up_axis_str=="Y_UP"){
+                ROS_INFO_COND(verbose,"Found Y_UP attribute, proceeding as normal");
             }else{
                 ROS_WARN("up_axis unexpected! up_axis=%s",up_axis_str.c_str());
             }
@@ -1339,7 +1341,7 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
 //            myMesh->scale.z*=meter;
             ROS_INFO_COND(verbose,"Found units, 1 unit=%f meters.  Sx=%f,Sy=%f,Sz=%f",meter,myMesh->scale.x,myMesh->scale.y,myMesh->scale.z);
         }else{
-            ROS_WARN("no units found");
+            //ROS_WARN("no units found");
         }
     }
 

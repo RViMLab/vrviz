@@ -72,6 +72,39 @@ void Mesh::MeshEntry::Init(const std::vector<vr::RenderModel_Vertex_t>& Vertices
 
 }
 
+
+void Mesh::MeshEntry::Init(const std::vector<vr::RenderModel_Vertex_t_rgb>& Vertices,
+                          const std::vector<u_int32_t>& Indices)
+{
+    NumIndices = Indices.size();
+
+    // create and bind a VAO to hold state for this model
+    glGenVertexArrays( 1, &VA );
+    glBindVertexArray( VA );
+
+    // Populate a vertex buffer
+    glGenBuffers( 1, &VB );
+    glBindBuffer( GL_ARRAY_BUFFER, VB );
+    glBufferData( GL_ARRAY_BUFFER, sizeof( vr::RenderModel_Vertex_t_rgb ) * Vertices.size(), &Vertices[0], GL_STATIC_DRAW );
+
+    // Identify the components in the vertex buffer
+    glEnableVertexAttribArray( 0 );
+    glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, sizeof( vr::RenderModel_Vertex_t_rgb ), (void *)offsetof( vr::RenderModel_Vertex_t_rgb, vPosition ) );
+    glEnableVertexAttribArray( 1 );
+    glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, sizeof( vr::RenderModel_Vertex_t_rgb ), (void *)offsetof( vr::RenderModel_Vertex_t_rgb, vNormal ) );
+    glEnableVertexAttribArray( 2 );
+    glVertexAttribPointer( 2, 3, GL_FLOAT, GL_FALSE, sizeof( vr::RenderModel_Vertex_t_rgb ), (void *)offsetof( vr::RenderModel_Vertex_t_rgb, vColor ) );
+
+    // Create and populate the index buffer
+    glGenBuffers( 1, &IB );
+    glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, IB );
+    glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( u_int32_t ) * NumIndices, &Indices[0], GL_STATIC_DRAW );
+
+    glBindVertexArray( 0 );
+
+}
+
+
 Mesh::Mesh()
 {
     trans=Matrix4().identity();
@@ -121,13 +154,15 @@ bool Mesh::InitFromScene(const aiScene* pScene, const std::string& Filename)
     m_Entries.resize(pScene->mNumMeshes);
     m_Textures.resize(pScene->mNumMaterials);
 
+    InitMaterials(pScene, Filename);
+
     // Initialize the meshes in the scene one by one
     for (unsigned int i = 0 ; i < m_Entries.size() ; i++) {
         const aiMesh* paiMesh = pScene->mMeshes[i];
         InitMesh(i, paiMesh, pScene->mRootNode);
     }
 
-    return InitMaterials(pScene, Filename);
+    return true;
 }
 
 void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* node)
@@ -156,75 +191,146 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
 
 
     m_Entries[Index].MaterialIndex = paiMesh->mMaterialIndex;
-    
-    std::vector<vr::RenderModel_Vertex_t> Vertices;
+
     std::vector<u_int32_t> Indices;
 
-    const aiVector3D Zero3D(0.0f, 0.0f, 0.0f);
 
-    for (unsigned int i = 0 ; i < paiMesh->mNumVertices ; i++) {
-        aiVector3D pos = paiMesh->mVertices[i];
-        aiVector3D n = paiMesh->mNormals[i];
-        const aiVector3D* pTexCoord = paiMesh->HasTextureCoords(0) ? &(paiMesh->mTextureCoords[0][i]) : &Zero3D;
+    bool use_texture = (paiMesh->mMaterialIndex != NULL);
 
-        /// THIS SEEMS BROKEN!
-        // Transform the positions and normals appropriately
-        //pos = transform*pos;
-        //n = rotation*n;
+    if(use_texture){
+        const aiVector3D Zero3D(0.0f, 0.0f, 0.0f);
+        std::vector<vr::RenderModel_Vertex_t> Vertices;
+
+        for (unsigned int i = 0 ; i < paiMesh->mNumVertices ; i++) {
+            aiVector3D pos = paiMesh->mVertices[i];
+            aiVector3D n = paiMesh->mNormals[i];
 
 
-        Vector4 pt;
-        if(Z_UP){
-            pt.x= pos.x*scale.x;
-            pt.z= pos.y*scale.y;
-            pt.y=-pos.z*scale.z;
-        }else{
-            pt.x=pos.x*scale.x;
-            pt.y=pos.y*scale.y;
-            pt.z=pos.z*scale.z;
+
+            Vector4 pt;
+            if(Z_UP){
+                pt.x= pos.x*scale.x;
+                pt.z= pos.y*scale.y;
+                pt.y=-pos.z*scale.z;
+            }else{
+                pt.x=pos.x*scale.x;
+                pt.y=pos.y*scale.y;
+                pt.z=pos.z*scale.z;
+            }
+            pt.w=1;
+
+            Vector4 pt_trans = trans * pt;
+
+            Vector4 nm;
+            if(Z_UP){
+                nm.x= n.x;
+                nm.z= n.y;
+                nm.y=-n.z;
+            }else{
+                nm.x=n.x;
+                nm.y=n.y;
+                nm.z=n.z;
+            }
+            nm.w=0; // Normals are vectors in free space, so w=0 keeps it from being affected by the translation part
+
+            Vector4 nm_trans = trans * nm;
+
+
+            const aiVector3D* pTexCoord = paiMesh->HasTextureCoords(0) ? &(paiMesh->mTextureCoords[0][i]) : &Zero3D;
+            vr::RenderModel_Vertex_t v;
+            v.vPosition.v[0]=pt_trans.x;
+            v.vPosition.v[1]=pt_trans.y;
+            v.vPosition.v[2]=pt_trans.z;
+            v.rfTextureCoord[0]=pTexCoord->x;
+            v.rfTextureCoord[1]=pTexCoord->y;
+            v.vNormal.v[0]=nm_trans.x;
+            v.vNormal.v[1]=nm_trans.y;
+            v.vNormal.v[2]=nm_trans.z;
+
+
+            Vertices.push_back(v);
         }
-        pt.w=1;
-
-        Vector4 pt_trans = trans * pt;
-
-        Vector4 nm;
-        if(Z_UP){
-            nm.x= n.x;
-            nm.z= n.y;
-            nm.y=-n.z;
-        }else{
-            nm.x=n.x;
-            nm.y=n.y;
-            nm.z=n.z;
+        for (unsigned int i = 0 ; i < paiMesh->mNumFaces ; i++) {
+            const aiFace& Face = paiMesh->mFaces[i];
+            if(Face.mNumIndices != 3){
+                std::cout << "numfaces not 3, it is " << Face.mNumIndices << std::endl;
+            }else{
+                Indices.push_back(Face.mIndices[0]);
+                Indices.push_back(Face.mIndices[1]);
+                Indices.push_back(Face.mIndices[2]);
+            }
         }
-        nm.w=0; // Normals are vectors in free space, so w=0 keeps it from being affected by the translation part
 
-        Vector4 nm_trans = trans * nm;
+        m_Entries[Index].Init(Vertices, Indices);
 
+    }else{
+        const aiColor4D Zero4D(0.0f, 0.0f, 0.0f, 0.0f);
+        std::vector<vr::RenderModel_Vertex_t_rgb> Vertices;
 
-        vr::RenderModel_Vertex_t v;
-        v.vPosition.v[0]=pt_trans.x;
-        v.vPosition.v[1]=pt_trans.y;
-        v.vPosition.v[2]=pt_trans.z;
-        v.rfTextureCoord[0]=pTexCoord->x;
-        v.rfTextureCoord[1]=pTexCoord->y;
-        v.vNormal.v[0]=nm_trans.x;
-        v.vNormal.v[1]=nm_trans.y;
-        v.vNormal.v[2]=nm_trans.z;
+        for (unsigned int i = 0 ; i < paiMesh->mNumVertices ; i++) {
+            aiVector3D pos = paiMesh->mVertices[i];
+            aiVector3D n = paiMesh->mNormals[i];
 
 
-        Vertices.push_back(v);
+
+            Vector4 pt;
+            if(Z_UP){
+                pt.x= pos.x*scale.x;
+                pt.z= pos.y*scale.y;
+                pt.y=-pos.z*scale.z;
+            }else{
+                pt.x=pos.x*scale.x;
+                pt.y=pos.y*scale.y;
+                pt.z=pos.z*scale.z;
+            }
+            pt.w=1;
+
+            Vector4 pt_trans = trans * pt;
+
+            Vector4 nm;
+            if(Z_UP){
+                nm.x= n.x;
+                nm.z= n.y;
+                nm.y=-n.z;
+            }else{
+                nm.x=n.x;
+                nm.y=n.y;
+                nm.z=n.z;
+            }
+            nm.w=0; // Normals are vectors in free space, so w=0 keeps it from being affected by the translation part
+
+            Vector4 nm_trans = trans * nm;
+
+
+            const aiColor4D* pVertColor = paiMesh->HasVertexColors(0) ? &(paiMesh->mColors[0][i]) : &Zero4D;
+            vr::RenderModel_Vertex_t_rgb v;
+            v.vPosition.v[0]=pt_trans.x;
+            v.vPosition.v[1]=pt_trans.y;
+            v.vPosition.v[2]=pt_trans.z;
+            v.vColor.v[0]=pVertColor->r;
+            v.vColor.v[1]=pVertColor->g;
+            v.vColor.v[2]=pVertColor->b;
+            v.vNormal.v[0]=nm_trans.x;
+            v.vNormal.v[1]=nm_trans.y;
+            v.vNormal.v[2]=nm_trans.z;
+
+
+            Vertices.push_back(v);
+        }
+        for (unsigned int i = 0 ; i < paiMesh->mNumFaces ; i++) {
+            const aiFace& Face = paiMesh->mFaces[i];
+            if(Face.mNumIndices != 3){
+                std::cout << "numfaces not 3, it is " << Face.mNumIndices << std::endl;
+            }else{
+                Indices.push_back(Face.mIndices[0]);
+                Indices.push_back(Face.mIndices[1]);
+                Indices.push_back(Face.mIndices[2]);
+            }
+        }
+
+        m_Entries[Index].Init(Vertices, Indices);
     }
 
-    for (unsigned int i = 0 ; i < paiMesh->mNumFaces ; i++) {
-        const aiFace& Face = paiMesh->mFaces[i];
-        assert(Face.mNumIndices == 3);
-        Indices.push_back(Face.mIndices[0]);
-        Indices.push_back(Face.mIndices[1]);
-        Indices.push_back(Face.mIndices[2]);
-    }
-
-    m_Entries[Index].Init(Vertices, Indices);
 }
 
 bool Mesh::InitMaterials(const aiScene* pScene, const std::string& Filename)
@@ -269,19 +375,6 @@ bool Mesh::InitMaterials(const aiScene* pScene, const std::string& Filename)
                 }
             }
         }
-
-        // Load a white texture in case the model does not include its own texture
-        if (!m_Textures[i]) {
-            printf("No texture, falling back to '%s'\n", fallback_texture_filename.c_str());
-
-            aiColor3D color (0.f,0.f,0.f);
-            pMaterial->Get(AI_MATKEY_COLOR_DIFFUSE,color);
-            printf("Color = '%f,%f,%f'\n", color.r,color.g,color.b);
-
-            m_Textures[i] = new Texture(GL_TEXTURE_2D, fallback_texture_filename);
-
-            Ret = m_Textures[i]->Load();
-        }
     }
 
     return Ret;
@@ -289,17 +382,11 @@ bool Mesh::InitMaterials(const aiScene* pScene, const std::string& Filename)
 
 void Mesh::Render()
 {
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
 
     for (unsigned int i = 0 ; i < m_Entries.size() ; i++) {
-        glBindBuffer(GL_ARRAY_BUFFER, m_Entries[i].VB);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const GLvoid*)12);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const GLvoid*)20);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_Entries[i].IB);
+        glBindVertexArray( m_Entries[i].VA );
+
 
         const unsigned int MaterialIndex = m_Entries[i].MaterialIndex;
 
@@ -310,7 +397,4 @@ void Mesh::Render()
         glDrawElements(GL_TRIANGLES, m_Entries[i].NumIndices, GL_UNSIGNED_INT, 0);
     }
 
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    glDisableVertexAttribArray(2);
 }
