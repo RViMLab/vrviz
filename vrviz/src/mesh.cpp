@@ -195,7 +195,7 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
     std::vector<u_int32_t> Indices;
 
 
-    bool use_texture = (paiMesh->mMaterialIndex != NULL);
+    bool use_texture = (paiMesh->mMaterialIndex < m_Textures.size() && m_Textures[paiMesh->mMaterialIndex]);
 
     if(use_texture){
         const aiVector3D Zero3D(0.0f, 0.0f, 0.0f);
