@@ -293,6 +293,8 @@ private:
     void setScale(float scale)
     {
         m_fScale = scale;
+        m_fFarClip = 30.f * scale;
+        SetupCameras();
     }
 
     /*!
