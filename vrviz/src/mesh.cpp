@@ -165,6 +165,80 @@ bool Mesh::InitFromScene(const aiScene* pScene, const std::string& Filename)
     return true;
 }
 
+Vector4 Mesh::sphere2cart(float azimuth, float elevation, float radius)
+{
+    Vector4 cart(radius*sin(elevation)*cos(azimuth),
+                 radius*sin(elevation)*sin(azimuth),
+                 radius*cos(elevation), 1.0);
+    return cart;
+}
+
+void Mesh::AddColorVertex(Vector4 pt,Vector4 normal,Vector3 color, std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices)
+{
+    vr::RenderModel_Vertex_t_rgb v;
+    v.vPosition.v[0]=pt.x;
+    v.vPosition.v[1]=pt.y;
+    v.vPosition.v[2]=pt.z;
+    v.vColor.v[0]=color.x;
+    v.vColor.v[1]=color.y;
+    v.vColor.v[2]=color.z;
+    v.vNormal.v[0]=normal.x;
+    v.vNormal.v[1]=normal.y;
+    v.vNormal.v[2]=normal.z;
+
+    /// We are being inefficient and adding indices redundantly.
+    Indices.push_back(Vertices.size());
+    Vertices.push_back(v);
+
+}
+
+void Mesh::InitSphere(float radius, Vector3 color, Vector4 center, int num_lat, int num_lon )
+{
+    m_Entries.resize(1);
+    m_Entries[0].MaterialIndex=NO_TEXTURE;;
+    std::vector<vr::RenderModel_Vertex_t_rgb> Vertices;
+    std::vector<u_int32_t> Indices;
+
+    if(num_lon<=0){
+        num_lon=num_lat*2;
+    }
+    for(int lat=0;lat<num_lat;lat++)
+    {
+        for(int lon=0;lon<num_lon;lon++)
+        {
+            float azimuth1=(lon  )/float(num_lon)*M_PI*2;
+            float azimuth2=(lon+1)/float(num_lon)*M_PI*2;
+            float elevation1=(lat  )/float(num_lat)*M_PI;
+            float elevation2=(lat+1)/float(num_lat)*M_PI;
+
+            Vector4 p1=center+sphere2cart(azimuth1,elevation1,radius);
+            Vector4 n1=sphere2cart(azimuth1,elevation1,1.0);
+            Vector4 p2=center+sphere2cart(azimuth2,elevation1,radius);
+            Vector4 n2=sphere2cart(azimuth2,elevation1,1.0);
+            Vector4 p3=center+sphere2cart(azimuth2,elevation2,radius);
+            Vector4 n3=sphere2cart(azimuth2,elevation2,1.0);
+            Vector4 p4=center+sphere2cart(azimuth1,elevation2,radius);
+            Vector4 n4=sphere2cart(azimuth1,elevation2,1.0);
+
+            if(lat!=0){
+                AddColorVertex( p1, n1, color, Vertices, Indices );
+                AddColorVertex( p2, n2, color, Vertices, Indices );
+                AddColorVertex( p3, n3, color, Vertices, Indices );
+            }
+            if(lat!=num_lat-1){
+                AddColorVertex( p3, n3, color, Vertices, Indices );
+                AddColorVertex( p1, n1, color, Vertices, Indices );
+                AddColorVertex( p4, n4, color, Vertices, Indices );
+            }
+
+
+        }
+    }
+    m_Entries[0].Init(Vertices,Indices);
+    initialized=true;
+    std::cout << "Finished initializing" << std::endl;
+}
+
 void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* node)
 {
 
@@ -328,6 +402,7 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
             }
         }
 
+        m_Entries[Index].MaterialIndex=NO_TEXTURE;
         m_Entries[Index].Init(Vertices, Indices);
     }
 

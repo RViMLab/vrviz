@@ -1587,71 +1587,72 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 
         //robot_meshes[idx]->Render();
         for(int jj=0;jj<robot_meshes[idx]->m_Entries.size();jj++){
-            bool mesh_has_texture=robot_meshes[idx]->m_Textures[robot_meshes[idx]->m_Entries[jj].MaterialIndex]!=NULL;
-            if(mesh_has_texture){
+            if(robot_meshes[idx]->initialized){
+                //std::cout << "Rendering " << robot_meshes[idx]->name << " ID=" << robot_meshes[idx]->id << std::endl;
 
-                //ROS_INFO("Rendering %s, NI=%d",robot_meshes[idx]->name.c_str(),robot_meshes[idx]->m_Entries[jj].NumIndices);
+                if(robot_meshes[idx]->m_Entries[jj].MaterialIndex!=NO_TEXTURE){
 
-                // ----- Render Model rendering -----
-                glUseProgram( m_unLitModelProgramID );
+                    // ----- Render Model rendering -----
+                    glUseProgram( m_unLitModelProgramID );
 
-                Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->name);
-                Matrix4 matWorld = GetRobotMatrixPose(robot_meshes[idx]->name) ;
-                Vector4 eyePos = GetHMDMatrixPoseEye(nEye)*Vector4(0,0,0,1);
-                glUniformMatrix4fv( m_nLitModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
+                    Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->frame_id);
+                    Matrix4 matWorld = GetRobotMatrixPose(robot_meshes[idx]->frame_id) ;
+                    Vector4 eyePos = GetHMDMatrixPoseEye(nEye)*Vector4(0,0,0,1);
+                    glUniformMatrix4fv( m_nLitModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
 
-                /// The settings for light number, location, intensity, colour, etc could
-                /// all be made ros params so that they could be user settable.
-                glUniformMatrix4fv( m_WorldMatrixLocation, 1, GL_FALSE, matWorld.get() );
-                glUniform3f(m_eyeWorldPosLocation, eyePos.x,eyePos.y,eyePos.z);
-                glUniform1i(m_colorTextureLocation, 0);
-                glUniform3f(m_dirLightLocation.Color, 1.0,1.0,1.0);
-                glUniform1f(m_dirLightLocation.AmbientIntensity, 0.15);
-                glUniform3f(m_dirLightLocation.Direction, 0.0, -0.70710678118, -0.70710678118);
-                glUniform1f(m_dirLightLocation.DiffuseIntensity, 0.5);
-                /// For now, we are just using ambient + one directional light, no points or spots
-                glUniform1i(m_numPointLightsLocation, 0);
-                glUniform1i(m_numSpotLightsLocation, 0);
+                    /// The settings for light number, location, intensity, colour, etc could
+                    /// all be made ros params so that they could be user settable.
+                    glUniformMatrix4fv( m_WorldMatrixLocation, 1, GL_FALSE, matWorld.get() );
+                    glUniform3f(m_eyeWorldPosLocation, eyePos.x,eyePos.y,eyePos.z);
+                    glUniform1i(m_colorTextureLocation, 0);
+                    glUniform3f(m_dirLightLocation.Color, 1.0,1.0,1.0);
+                    glUniform1f(m_dirLightLocation.AmbientIntensity, 0.15);
+                    glUniform3f(m_dirLightLocation.Direction, 0.0, -0.70710678118, -0.70710678118);
+                    glUniform1f(m_dirLightLocation.DiffuseIntensity, 0.5);
+                    /// For now, we are just using ambient + one directional light, no points or spots
+                    glUniform1i(m_numPointLightsLocation, 0);
+                    glUniform1i(m_numSpotLightsLocation, 0);
 
-                glBindVertexArray( robot_meshes[idx]->m_Entries[jj].VA );
+                    glBindVertexArray( robot_meshes[idx]->m_Entries[jj].VA );
 
-                robot_meshes[idx]->m_Textures[jj]->Bind(GL_TEXTURE0);
+                    robot_meshes[idx]->m_Textures[jj]->Bind(GL_TEXTURE0);
 
-                glDrawElements( GL_TRIANGLES, robot_meshes[idx]->m_Entries[jj].NumIndices, GL_UNSIGNED_INT, 0 );
+                    glDrawElements( GL_TRIANGLES, robot_meshes[idx]->m_Entries[jj].NumIndices, GL_UNSIGNED_INT, 0 );
 
-                glBindVertexArray( 0 );
+                    glBindVertexArray( 0 );
 
-                glUseProgram( 0 );
-            }else{
+                    glUseProgram( 0 );
+                }else{
 
-                // ----- Render Model rendering -----
-                glUseProgram( m_unLitRGBModelProgramID );
+                    // ----- Render Model rendering -----
+                    glUseProgram( m_unLitRGBModelProgramID );
 
-                Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->name);
-                Matrix4 matWorld = GetRobotMatrixPose(robot_meshes[idx]->name) ;
-                Vector4 eyePos = GetHMDMatrixPoseEye(nEye)*Vector4(0,0,0,1);
-                glUniformMatrix4fv( m_nLitRGBModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
+                    Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->frame_id);
+                    Matrix4 matWorld = GetRobotMatrixPose(robot_meshes[idx]->frame_id) ;
+                    Vector4 eyePos = GetHMDMatrixPoseEye(nEye)*Vector4(0,0,0,1);
+                    glUniformMatrix4fv( m_nLitRGBModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
 
-                /// The settings for light number, location, intensity, colour, etc could
-                /// all be made ros params so that they could be user settable.
-                glUniformMatrix4fv( m_WorldMatrixRGBLocation, 1, GL_FALSE, matWorld.get() );
-                glUniform3f(m_eyeWorldPosRGBLocation, eyePos.x,eyePos.y,eyePos.z);
-                glUniform1i(m_colorTextureRGBLocation, 0);
-                glUniform3f(m_dirLightRGBLocation.Color, 1.0,1.0,1.0);
-                glUniform1f(m_dirLightRGBLocation.AmbientIntensity, 0.15);
-                glUniform3f(m_dirLightRGBLocation.Direction, 0.0, -0.70710678118, -0.70710678118);
-                glUniform1f(m_dirLightRGBLocation.DiffuseIntensity, 0.5);
-                /// For now, we are just using ambient + one directional light, no points or spots
-                glUniform1i(m_numPointLightsRGBLocation, 0);
-                glUniform1i(m_numSpotLightsRGBLocation, 0);
+                    /// The settings for light number, location, intensity, colour, etc could
+                    /// all be made ros params so that they could be user settable.
+                    glUniformMatrix4fv( m_WorldMatrixRGBLocation, 1, GL_FALSE, matWorld.get() );
+                    glUniform3f(m_eyeWorldPosRGBLocation, eyePos.x,eyePos.y,eyePos.z);
+                    glUniform1i(m_colorTextureRGBLocation, 0);
+                    glUniform3f(m_dirLightRGBLocation.Color, 1.0,1.0,1.0);
+                    glUniform1f(m_dirLightRGBLocation.AmbientIntensity, 0.15);
+                    glUniform3f(m_dirLightRGBLocation.Direction, 0.0, -0.70710678118, -0.70710678118);
+                    glUniform1f(m_dirLightRGBLocation.DiffuseIntensity, 0.5);
+                    /// For now, we are just using ambient + one directional light, no points or spots
+                    glUniform1i(m_numPointLightsRGBLocation, 0);
+                    glUniform1i(m_numSpotLightsRGBLocation, 0);
 
-                glBindVertexArray( robot_meshes[idx]->m_Entries[jj].VA );
+                    glBindVertexArray( robot_meshes[idx]->m_Entries[jj].VA );
 
-                glDrawElements( GL_TRIANGLES, robot_meshes[idx]->m_Entries[jj].NumIndices, GL_UNSIGNED_INT, 0 );
+                    glDrawElements( GL_TRIANGLES, robot_meshes[idx]->m_Entries[jj].NumIndices, GL_UNSIGNED_INT, 0 );
 
-                glBindVertexArray( 0 );
+                    glBindVertexArray( 0 );
 
-                glUseProgram( 0 );
+                    glUseProgram( 0 );
+                }
             }
         }
     }

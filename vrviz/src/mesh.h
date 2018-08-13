@@ -70,10 +70,18 @@ public:
     ~Mesh();
 
     bool LoadMesh(const std::string& Filename);
+    void InitSphere(float radius, Vector3 color, Vector4 center, int num_lat=8, int num_lon=0 );
 
     void Render();
 
     std::string name;
+    int id;
+    std::string frame_id;
+    bool has_texture;
+    bool initialized;
+    float radius;
+    Vector3 color;
+    Vector4 offset;
     std::string fallback_texture_filename;
     Vector3 scale;
     Matrix4 trans;
@@ -81,11 +89,14 @@ public:
 
 private:
     bool InitFromScene(const aiScene* pScene, const std::string& Filename);
+    Vector4 sphere2cart(float azimuth, float elevation, float radius);
+    void AddColorVertex(Vector4 pt,Vector4 normal,Vector3 color, std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices);
     void InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* node);
     bool InitMaterials(const aiScene* pScene, const std::string& Filename);
     void Clear();
 
 #define INVALID_MATERIAL 0xFFFFFFFF
+#define NO_TEXTURE 0xFFFFFFFE
 
 public:
     struct MeshEntry {

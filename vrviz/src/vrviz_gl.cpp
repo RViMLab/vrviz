@@ -470,6 +470,14 @@ private:
         }
 
 
+        for(int idx=0;idx<robot_meshes.size();idx++){
+            if(!robot_meshes[idx]->initialized){
+
+                robot_meshes[idx]->InitSphere(robot_meshes[idx]->radius,robot_meshes[idx]->color,robot_meshes[idx]->offset);
+            }
+        }
+
+
 #endif
         scene_update_needed=false;
     }
@@ -1054,6 +1062,49 @@ private:
 
 VRVizApplication *pVRVizApplication;
 
+int find_or_add_marker(visualization_msgs::Marker marker){
+    if(!pVRVizApplication){
+        return -1;
+    }
+    for(int idx=0;idx<pVRVizApplication->robot_meshes.size();idx++){
+        if(pVRVizApplication->robot_meshes[idx]->id==marker.id && pVRVizApplication->robot_meshes[idx]->name==marker.ns){
+            /// We already have something with this namespace and ID.
+            return idx;
+        }
+    }
+
+    Mesh* myMesh = new Mesh;
+    myMesh->name=marker.ns;
+    myMesh->id=marker.id;
+    myMesh->frame_id=marker.header.frame_id;
+    Vector3 scale;
+    scale.x=1.0;
+    scale.y=1.0;
+    scale.z=1.0;
+    myMesh->scale=scale;
+
+    Vector4 pt;
+    /// We scale up from real world units to 'vr units'
+    pt.x=marker.pose.position.x*scaling_factor;
+    pt.y=marker.pose.position.y*scaling_factor;
+    pt.z=marker.pose.position.z*scaling_factor;
+    pt.w=1.f;
+    myMesh->offset=pt;
+
+    Matrix4 ident;
+    ident.identity();
+    myMesh->trans=ident;
+    myMesh->fallback_texture_filename=fallback_texture_filename;
+    myMesh->radius=marker.scale.x/2.0*scaling_factor;
+    Vector3 color(marker.color.r,
+                  marker.color.g,
+                  marker.color.b);
+    myMesh->color=color;
+    myMesh->initialized=false;
+    pVRVizApplication->robot_meshes.push_back(myMesh);
+    return -2;
+}
+
 /*!
  * \brief Callback for an array of Visualization Markers
  *
@@ -1092,7 +1143,10 @@ void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
             Vector3 color(marker.color.r,
                           marker.color.g,
                           marker.color.b);
-            pVRVizApplication->AddSphereToScene(mat4,colorvertdataarray,radius,color);
+            //pVRVizApplication->AddSphereToScene(mat4,colorvertdataarray,radius,color);
+
+            find_or_add_marker(marker);
+
         }else if(marker.type==visualization_msgs::Marker::CUBE){
             float radius=marker.scale.x/2.0*scaling_factor; /// scale.x should be cube width
             Vector3 color(marker.color.r,
@@ -1303,6 +1357,7 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
 
     Mesh* myMesh = new Mesh;
     myMesh->name=name;
+    myMesh->frame_id=name;
     myMesh->scale=scale;
     myMesh->trans=trans;
     myMesh->fallback_texture_filename=fallback_texture_filename;
@@ -1350,6 +1405,7 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
 
     if(myMesh->LoadMesh(mod_url)){
         ROS_INFO("Loaded %s's mesh:%s",name.c_str(),mod_url.c_str());
+        myMesh->initialized=true;
         pVRVizApplication->robot_meshes.push_back(myMesh);
     }else{
         ROS_ERROR("Could not load mesh file %s",mod_url.c_str());
