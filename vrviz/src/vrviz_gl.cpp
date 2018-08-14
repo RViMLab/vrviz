@@ -473,7 +473,7 @@ private:
         for(int idx=0;idx<robot_meshes.size();idx++){
             if(!robot_meshes[idx]->initialized){
 
-                robot_meshes[idx]->InitSphere(robot_meshes[idx]->radius,robot_meshes[idx]->color,robot_meshes[idx]->offset);
+                robot_meshes[idx]->InitMarker(scaling_factor);
             }
         }
 
@@ -561,151 +561,6 @@ private:
         vertdata.push_back(color.y);
         vertdata.push_back(color.z);
     }
-
-    //-----------------------------------------------------------------------------
-    // Purpose:
-    //-----------------------------------------------------------------------------
-    void AddCubeToScene( Matrix4 mat, std::vector<float> &vertdata, float radius, Vector3 color)
-    {
-        // The eight corners of the cube
-        Vector4 A = mat * Vector4( -radius, -radius, -radius, 1 );
-        Vector4 B = mat * Vector4(  radius, -radius, -radius, 1 );
-        Vector4 C = mat * Vector4(  radius,  radius, -radius, 1 );
-        Vector4 D = mat * Vector4( -radius,  radius, -radius, 1 );
-        Vector4 E = mat * Vector4( -radius, -radius,  radius, 1 );
-        Vector4 F = mat * Vector4(  radius, -radius,  radius, 1 );
-        Vector4 G = mat * Vector4(  radius,  radius,  radius, 1 );
-        Vector4 H = mat * Vector4( -radius,  radius,  radius, 1 );
-
-        // triangles instead of quads
-        AddColorVertex( E , color, vertdata ); //Front
-        AddColorVertex( F , color, vertdata );
-        AddColorVertex( G , color, vertdata );
-        AddColorVertex( G , color, vertdata );
-        AddColorVertex( H , color, vertdata );
-        AddColorVertex( E , color, vertdata );
-
-        AddColorVertex( B , color, vertdata ); //Back
-        AddColorVertex( A , color, vertdata );
-        AddColorVertex( D , color, vertdata );
-        AddColorVertex( D , color, vertdata );
-        AddColorVertex( C , color, vertdata );
-        AddColorVertex( B , color, vertdata );
-
-        AddColorVertex( H , color, vertdata ); //Top
-        AddColorVertex( G , color, vertdata );
-        AddColorVertex( C , color, vertdata );
-        AddColorVertex( C , color, vertdata );
-        AddColorVertex( D , color, vertdata );
-        AddColorVertex( H , color, vertdata );
-
-        AddColorVertex( A , color, vertdata ); //Bottom
-        AddColorVertex( B , color, vertdata );
-        AddColorVertex( F , color, vertdata );
-        AddColorVertex( F , color, vertdata );
-        AddColorVertex( E , color, vertdata );
-        AddColorVertex( A , color, vertdata );
-
-        AddColorVertex( A , color, vertdata ); //Left
-        AddColorVertex( E , color, vertdata );
-        AddColorVertex( H , color, vertdata );
-        AddColorVertex( H , color, vertdata );
-        AddColorVertex( D , color, vertdata );
-        AddColorVertex( A , color, vertdata );
-
-        AddColorVertex( F , color, vertdata ); //Right
-        AddColorVertex( B , color, vertdata );
-        AddColorVertex( C , color, vertdata );
-        AddColorVertex( C , color, vertdata );
-        AddColorVertex( G , color, vertdata );
-        AddColorVertex( F , color, vertdata );
-    }
-
-    //-----------------------------------------------------------------------------
-    // Purpose:
-    //-----------------------------------------------------------------------------
-    void AddSphereToScene( Matrix4 mat, std::vector<float> &vertdata, float radius, Vector3 color)
-    {
-
-        int num_lat=16;
-        int num_lon=num_lat*2;
-        for(int lat=0;lat<num_lat;lat++)
-        {
-            for(int lon=0;lon<num_lon;lon++)
-            {
-                float azimuth1=(lon  )/float(num_lon)*M_PI*2;
-                float azimuth2=(lon+1)/float(num_lon)*M_PI*2;
-                float elevation1=(lat  )/float(num_lat)*M_PI;
-                float elevation2=(lat+1)/float(num_lat)*M_PI;
-
-                Vector4 p1=mat*sphere2cart(azimuth1,elevation1,radius);
-                Vector4 p2=mat*sphere2cart(azimuth2,elevation1,radius);
-                Vector4 p3=mat*sphere2cart(azimuth2,elevation2,radius);
-                Vector4 p4=mat*sphere2cart(azimuth1,elevation2,radius);
-
-                if(lat!=0){
-                    AddColorVertex( p1, color, vertdata );
-                    AddColorVertex( p2, color, vertdata );
-                    AddColorVertex( p3, color, vertdata );
-                }
-                if(lat!=num_lat-1){
-                    AddColorVertex( p3, color, vertdata );
-                    AddColorVertex( p1, color, vertdata );
-                    AddColorVertex( p4, color, vertdata );
-                }
-            }
-        }
-    }
-
-    //-----------------------------------------------------------------------------
-    // Purpose:
-    //-----------------------------------------------------------------------------
-    void AddCylinderToScene( Matrix4 mat, std::vector<float> &vertdata, float radius, float length, Vector3 color)
-    {
-
-        Vector4 Top = mat * Vector4( 0, 0, -length/2, 1 );
-        Vector4 Bot = mat * Vector4( 0, 0,  length/2, 1 );
-        std::vector<Vector4> Top_Ring;
-        //std::vector<Vector2> Top_Ring_Text;
-        std::vector<Vector4> Bot_Ring;
-        //std::vector<Vector2> Bot_Ring_Text;
-        for(int ii=0;ii<m_iCylinderNumFacets;ii++){
-            float angle = ii*M_PI*2.0/m_iCylinderNumFacets;
-            Vector4 top_vert = mat * Vector4( radius*sin(angle), radius*cos(angle), -length/2, 1 );
-            Top_Ring.push_back(top_vert);
-            //Top_Ring_Text.push_back(Vector2((cos(angle)*0.5)/(text_stop.x-text_start.x)+text_start.x,(sin(angle)*0.5)/(text_stop.y-text_start.y)+text_start.y));
-            Vector4 bot_vert = mat * Vector4( radius*sin(angle), radius*cos(angle),  length/2, 1 );
-            Bot_Ring.push_back(bot_vert);
-            //Bot_Ring_Text.push_back(Vector2((cos(angle)*0.5)/(text_stop.x-text_start.x)+text_start.x,(sin(angle)*0.5)/(text_stop.y-text_start.y)+text_start.y));
-        }
-
-
-        for(int ii=0;ii<m_iCylinderNumFacets;ii++){
-            int idx1=ii;
-            int idx2=(ii+1)%m_iCylinderNumFacets;
-
-            //Top Pinwheel
-            AddColorVertex( Top, color, vertdata );
-            AddColorVertex( Top_Ring[idx1], color, vertdata );
-            AddColorVertex( Top_Ring[idx2], color, vertdata );
-
-            //Bottom Pinwheel
-            AddColorVertex( Bot, color, vertdata );
-            AddColorVertex( Bot_Ring[idx1], color, vertdata );
-            AddColorVertex( Bot_Ring[idx2], color, vertdata );
-
-            //Side
-            AddColorVertex( Bot_Ring[idx1], color, vertdata ); //Front
-            AddColorVertex( Bot_Ring[idx2], color, vertdata );
-            AddColorVertex( Top_Ring[idx2], color, vertdata );
-            AddColorVertex( Top_Ring[idx2], color, vertdata );
-            AddColorVertex( Top_Ring[idx1], color, vertdata );
-            AddColorVertex( Bot_Ring[idx1], color, vertdata );
-
-        }
-    }
-
-
 
     void add_frame_to_scene( Matrix4 mat, std::vector<float> &vertdataarray, float radius, int num_dof=3)
     {
@@ -1069,6 +924,8 @@ int find_or_add_marker(visualization_msgs::Marker marker){
     for(int idx=0;idx<pVRVizApplication->robot_meshes.size();idx++){
         if(pVRVizApplication->robot_meshes[idx]->id==marker.id && pVRVizApplication->robot_meshes[idx]->name==marker.ns){
             /// We already have something with this namespace and ID.
+//            pVRVizApplication->robot_meshes[idx]->marker=marker;
+//            pVRVizApplication->robot_meshes[idx]->initialized=false;
             return idx;
         }
     }
@@ -1083,23 +940,11 @@ int find_or_add_marker(visualization_msgs::Marker marker){
     scale.z=1.0;
     myMesh->scale=scale;
 
-    Vector4 pt;
-    /// We scale up from real world units to 'vr units'
-    pt.x=marker.pose.position.x*scaling_factor;
-    pt.y=marker.pose.position.y*scaling_factor;
-    pt.z=marker.pose.position.z*scaling_factor;
-    pt.w=1.f;
-    myMesh->offset=pt;
-
     Matrix4 ident;
     ident.identity();
     myMesh->trans=ident;
     myMesh->fallback_texture_filename=fallback_texture_filename;
-    myMesh->radius=marker.scale.x/2.0*scaling_factor;
-    Vector3 color(marker.color.r,
-                  marker.color.g,
-                  marker.color.b);
-    myMesh->color=color;
+    myMesh->marker=marker;
     myMesh->initialized=false;
     pVRVizApplication->robot_meshes.push_back(myMesh);
     return -2;
@@ -1123,66 +968,7 @@ void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
 
     for(int ii=0;ii<msg->markers.size();ii++)
     {
-        visualization_msgs::Marker marker=msg->markers[ii];
-
-        Vector4 pt;
-        /// We scale up from real world units to 'vr units'
-        pt.x=marker.pose.position.x*scaling_factor;
-        pt.y=marker.pose.position.y*scaling_factor;
-        pt.z=marker.pose.position.z*scaling_factor;
-        pt.w=1.f;
-
-        Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(marker.header.frame_id);
-
-        Matrix4 matTransform4;
-        matTransform4.translate(pt.x,pt.y,pt.z);
-        Matrix4 mat4 = mat * matTransform4;
-
-        if(marker.type==visualization_msgs::Marker::SPHERE){
-            float radius=marker.scale.x/2.0*scaling_factor; /// scale.x should be diameter
-            Vector3 color(marker.color.r,
-                          marker.color.g,
-                          marker.color.b);
-            //pVRVizApplication->AddSphereToScene(mat4,colorvertdataarray,radius,color);
-
-            find_or_add_marker(marker);
-
-        }else if(marker.type==visualization_msgs::Marker::CUBE){
-            float radius=marker.scale.x/2.0*scaling_factor; /// scale.x should be cube width
-            Vector3 color(marker.color.r,
-                          marker.color.g,
-                          marker.color.b);
-            pVRVizApplication->AddCubeToScene(mat4,colorvertdataarray,radius,color);
-        }else if(marker.type==visualization_msgs::Marker::CYLINDER){
-            float radius=marker.scale.x/2.0*scaling_factor; /// scale.x is diameter in x direction (currently don't support ellipse)
-            float length=marker.scale.z*scaling_factor; /// Use scale.z to specify the height.
-            Vector3 color(marker.color.r,
-                          marker.color.g,
-                          marker.color.b);
-            Matrix4 mat5;
-            tf::Quaternion q(marker.pose.orientation.x,
-                             marker.pose.orientation.y,
-                             marker.pose.orientation.z,
-                             marker.pose.orientation.w);
-            tf::Matrix3x3 m(q);
-            mat5.set(m.getColumn(0).getX(),
-                     m.getColumn(0).getY(),
-                     m.getColumn(0).getZ(),0,
-                     m.getColumn(1).getX(),
-                     m.getColumn(1).getY(),
-                     m.getColumn(1).getZ(),0,
-                     m.getColumn(2).getX(),
-                     m.getColumn(2).getY(),
-                     m.getColumn(2).getZ(),0,
-                     0,0,0,1);
-
-            //mat5.rotate(q.getAngle(),q.getAxis().getX(),q.getAxis().getY(),q.getAxis().getZ());
-            Matrix4 mat6 = mat4*mat5;
-            pVRVizApplication->AddCylinderToScene(mat6,colorvertdataarray,radius,length,color);
-        }else if(marker.type==visualization_msgs::Marker::TEXT_VIEW_FACING){
-            float height=marker.scale.z*scaling_factor; /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
-            pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,marker.text,height);
-        }
+        find_or_add_marker(msg->markers[ii]);
     }
     /// Copy the data over to the shared data
     /// \todo This should be protected with a mutex of sorts!

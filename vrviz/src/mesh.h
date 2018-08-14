@@ -28,6 +28,7 @@
 #include "shared/Matrices.h"
 #include "texture.h"
 #include "openvr.h"
+#include "visualization_msgs/Marker.h"
 
 #define SAFE_DELETE(p) if (p) { delete p; p = NULL; }
 #define ASSIMP_LOAD_FLAGS (aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices)
@@ -70,7 +71,7 @@ public:
     ~Mesh();
 
     bool LoadMesh(const std::string& Filename);
-    void InitSphere(float radius, Vector3 color, Vector4 center, int num_lat=8, int num_lon=0 );
+    void InitMarker(float scaling_factor=1.0);
 
     void Render();
 
@@ -79,9 +80,9 @@ public:
     std::string frame_id;
     bool has_texture;
     bool initialized;
-    float radius;
-    Vector3 color;
-    Vector4 offset;
+
+    visualization_msgs::Marker marker;
+
     std::string fallback_texture_filename;
     Vector3 scale;
     Matrix4 trans;
@@ -91,6 +92,10 @@ private:
     bool InitFromScene(const aiScene* pScene, const std::string& Filename);
     Vector4 sphere2cart(float azimuth, float elevation, float radius);
     void AddColorVertex(Vector4 pt,Vector4 normal,Vector3 color, std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices);
+    void AddColorTri(Vector4 pt1, Vector4 pt2, Vector4 pt3, Vector3 color, std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices);
+    void InitCube(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Vector3 radius, Vector3 color, Matrix4 mat );
+    void InitSphere(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, float radius, Vector3 color, Vector4 center, int num_lat=8, int num_lon=0 );
+    void InitCylinder( std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Matrix4 mat, float radius, float length, Vector3 color, int num_facets=12 );
     void InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* node);
     bool InitMaterials(const aiScene* pScene, const std::string& Filename);
     void Clear();

@@ -19,6 +19,7 @@
 
 
 #include "mesh.h"
+#include <tf/transform_broadcaster.h>
 
 Mesh::MeshEntry::MeshEntry()
 {
@@ -192,14 +193,142 @@ void Mesh::AddColorVertex(Vector4 pt,Vector4 normal,Vector3 color, std::vector<v
 
 }
 
-void Mesh::InitSphere(float radius, Vector3 color, Vector4 center, int num_lat, int num_lon )
+void Mesh::AddColorTri(Vector4 pt1, Vector4 pt2, Vector4 pt3, Vector3 color, std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices)
+{
+    Vector3 pt1_b(pt1.x-pt2.x,pt1.y-pt2.y,pt1.z-pt2.z);
+    Vector3 pt2_b(pt2.x-pt3.x,pt2.y-pt3.y,pt2.z-pt3.z);
+    Vector3 nm = pt1_b.cross(pt2_b);
+    Vector4 normal(nm.x,nm.y,nm.z,0.0);
+
+    AddColorVertex(pt1,normal,color,Vertices,Indices);
+    AddColorVertex(pt2,normal,color,Vertices,Indices);
+    AddColorVertex(pt3,normal,color,Vertices,Indices);
+}
+
+void Mesh::InitMarker(float scaling_factor)
 {
     m_Entries.resize(1);
-    m_Entries[0].MaterialIndex=NO_TEXTURE;;
+    m_Entries[0].MaterialIndex=NO_TEXTURE;
     std::vector<vr::RenderModel_Vertex_t_rgb> Vertices;
     std::vector<u_int32_t> Indices;
 
+    Vector4 pt;
+    /// We scale up from real world units to 'vr units'
+    pt.x=marker.pose.position.x*scaling_factor;
+    pt.y=marker.pose.position.y*scaling_factor;
+    pt.z=marker.pose.position.z*scaling_factor;
+    pt.w=1.f;
+
+    Matrix4 mat4;
+    mat4.translate(pt.x,pt.y,pt.z);
+
+    if(marker.type==visualization_msgs::Marker::ARROW){
+
+
+    }else if(marker.type==visualization_msgs::Marker::CUBE){
+        Vector3 radius(marker.scale.x/2.0*scaling_factor,marker.scale.y/2.0*scaling_factor,marker.scale.z/2.0*scaling_factor);
+        Vector3 color(marker.color.r,
+                      marker.color.g,
+                      marker.color.b);
+        Matrix4 mat5;
+        tf::Quaternion q(marker.pose.orientation.x,
+                         marker.pose.orientation.y,
+                         marker.pose.orientation.z,
+                         marker.pose.orientation.w);
+        tf::Matrix3x3 m(q);
+        mat5.set(m.getColumn(0).getX(),
+                 m.getColumn(0).getY(),
+                 m.getColumn(0).getZ(),0,
+                 m.getColumn(1).getX(),
+                 m.getColumn(1).getY(),
+                 m.getColumn(1).getZ(),0,
+                 m.getColumn(2).getX(),
+                 m.getColumn(2).getY(),
+                 m.getColumn(2).getZ(),0,
+                 0,0,0,1);
+
+        Matrix4 mat6 = mat4*mat5;
+        InitCube(Vertices,Indices,radius,color,mat6);
+    }else if(marker.type==visualization_msgs::Marker::SPHERE){
+        float radius=marker.scale.x/2.0*scaling_factor; /// scale.x should be diameter
+        Vector3 color(marker.color.r,
+                      marker.color.g,
+                      marker.color.b);
+        InitSphere(Vertices,Indices,radius,color,pt);
+
+    }else if(marker.type==visualization_msgs::Marker::CYLINDER){
+        float radius=marker.scale.x/2.0*scaling_factor; /// scale.x is diameter in x direction (currently don't support ellipse)
+        float length=marker.scale.z*scaling_factor; /// Use scale.z to specify the height.
+        Vector3 color(marker.color.r,
+                      marker.color.g,
+                      marker.color.b);
+        Matrix4 mat5;
+        tf::Quaternion q(marker.pose.orientation.x,
+                         marker.pose.orientation.y,
+                         marker.pose.orientation.z,
+                         marker.pose.orientation.w);
+        tf::Matrix3x3 m(q);
+        mat5.set(m.getColumn(0).getX(),
+                 m.getColumn(0).getY(),
+                 m.getColumn(0).getZ(),0,
+                 m.getColumn(1).getX(),
+                 m.getColumn(1).getY(),
+                 m.getColumn(1).getZ(),0,
+                 m.getColumn(2).getX(),
+                 m.getColumn(2).getY(),
+                 m.getColumn(2).getZ(),0,
+                 0,0,0,1);
+
+        //mat5.rotate(q.getAngle(),q.getAxis().getX(),q.getAxis().getY(),q.getAxis().getZ());
+        Matrix4 mat6 = mat4*mat5;
+        //pVRVizApplication->AddCylinderToScene(mat6,colorvertdataarray,radius,length,color);
+        InitCylinder(Vertices,Indices,mat6,radius,length,color);
+    }else if(marker.type==visualization_msgs::Marker::TEXT_VIEW_FACING){
+        float height=marker.scale.z*scaling_factor; /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
+        //pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,marker.text,height);
+    }
+
+    m_Entries[0].Init(Vertices,Indices);
+    initialized=true;
+}
+
+void Mesh::InitCube(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Vector3 radius, Vector3 color, Matrix4 mat )
+{
+    // The eight corners of the cube
+    Vector4 A = mat * Vector4( -radius.x, -radius.y, -radius.z, 1 );
+    Vector4 B = mat * Vector4(  radius.x, -radius.y, -radius.z, 1 );
+    Vector4 C = mat * Vector4(  radius.x,  radius.y, -radius.z, 1 );
+    Vector4 D = mat * Vector4( -radius.x,  radius.y, -radius.z, 1 );
+    Vector4 E = mat * Vector4( -radius.x, -radius.y,  radius.z, 1 );
+    Vector4 F = mat * Vector4(  radius.x, -radius.y,  radius.z, 1 );
+    Vector4 G = mat * Vector4(  radius.x,  radius.y,  radius.z, 1 );
+    Vector4 H = mat * Vector4( -radius.x,  radius.y,  radius.z, 1 );
+
+    // triangles instead of quads
+    AddColorTri(E,F,G,color,Vertices,Indices); //Front
+    AddColorTri(G,H,E,color,Vertices,Indices);
+
+    AddColorTri(B,A,D,color,Vertices,Indices); //Back
+    AddColorTri(D,C,B,color,Vertices,Indices);
+
+    AddColorTri(H,G,C,color,Vertices,Indices); //Top
+    AddColorTri(C,D,H,color,Vertices,Indices);
+
+    AddColorTri(A,B,F,color,Vertices,Indices); //Bottom
+    AddColorTri(F,E,A,color,Vertices,Indices);
+
+    AddColorTri(A,E,H,color,Vertices,Indices);
+    AddColorTri(H,D,A,color,Vertices,Indices);
+
+    AddColorTri(F,B,C,color,Vertices,Indices);
+    AddColorTri(C,G,F,color,Vertices,Indices);
+}
+
+void Mesh::InitSphere(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, float radius, Vector3 color, Vector4 center, int num_lat, int num_lon )
+{
+    bool smooth=false; //!< If we compute normals per vert, we could get nice smooth shapes.
     if(num_lon<=0){
+        /// Default to twice the latitudes, since longitude goes -180 to +180 and latitude only goes -90 to +90
         num_lon=num_lat*2;
     }
     for(int lat=0;lat<num_lat;lat++)
@@ -212,32 +341,78 @@ void Mesh::InitSphere(float radius, Vector3 color, Vector4 center, int num_lat, 
             float elevation2=(lat+1)/float(num_lat)*M_PI;
 
             Vector4 p1=center+sphere2cart(azimuth1,elevation1,radius);
-            Vector4 n1=sphere2cart(azimuth1,elevation1,1.0);
             Vector4 p2=center+sphere2cart(azimuth2,elevation1,radius);
-            Vector4 n2=sphere2cart(azimuth2,elevation1,1.0);
             Vector4 p3=center+sphere2cart(azimuth2,elevation2,radius);
-            Vector4 n3=sphere2cart(azimuth2,elevation2,1.0);
             Vector4 p4=center+sphere2cart(azimuth1,elevation2,radius);
-            Vector4 n4=sphere2cart(azimuth1,elevation2,1.0);
 
-            if(lat!=0){
-                AddColorVertex( p1, n1, color, Vertices, Indices );
-                AddColorVertex( p2, n2, color, Vertices, Indices );
-                AddColorVertex( p3, n3, color, Vertices, Indices );
-            }
-            if(lat!=num_lat-1){
-                AddColorVertex( p3, n3, color, Vertices, Indices );
-                AddColorVertex( p1, n1, color, Vertices, Indices );
-                AddColorVertex( p4, n4, color, Vertices, Indices );
+            if(smooth){
+                /// The normal could actually just be the point (normalized). Weird, huh?
+                Vector4 n1=sphere2cart(azimuth1,elevation1,1.0);
+                Vector4 n2=sphere2cart(azimuth2,elevation1,1.0);
+                Vector4 n3=sphere2cart(azimuth2,elevation2,1.0);
+                Vector4 n4=sphere2cart(azimuth1,elevation2,1.0);
+                /// The top and bottom ring have zero size elements. Skip those.
+                if(lat!=0){
+                    AddColorVertex( p1, n1, color, Vertices, Indices );
+                    AddColorVertex( p2, n2, color, Vertices, Indices );
+                    AddColorVertex( p3, n3, color, Vertices, Indices );
+                }
+                if(lat!=num_lat-1){
+                    AddColorVertex( p3, n3, color, Vertices, Indices );
+                    AddColorVertex( p1, n1, color, Vertices, Indices );
+                    AddColorVertex( p4, n4, color, Vertices, Indices );
+                }
+            }else{
+                /// The top and bottom ring have zero size elements. Skip those.
+                if(lat!=0){
+                    AddColorTri( p3,p2,p1,color,Vertices,Indices);
+                }
+                if(lat!=num_lat-1){
+                    AddColorTri( p3,p1,p4,color,Vertices,Indices);
+                }
             }
 
 
         }
     }
-    m_Entries[0].Init(Vertices,Indices);
-    initialized=true;
-    std::cout << "Finished initializing" << std::endl;
 }
+
+//-----------------------------------------------------------------------------
+// Purpose:
+//-----------------------------------------------------------------------------
+void Mesh::InitCylinder( std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Matrix4 mat, float radius, float length, Vector3 color, int num_facets )
+{
+
+    Vector4 Top = mat * Vector4( 0, 0, -length/2, 1 );
+    Vector4 Bot = mat * Vector4( 0, 0,  length/2, 1 );
+    std::vector<Vector4> Top_Ring;
+    std::vector<Vector4> Bot_Ring;
+    for(int ii=0;ii<num_facets;ii++){
+        float angle = ii*M_PI*2.0/num_facets;
+        Vector4 top_vert = mat * Vector4( radius*sin(angle), radius*cos(angle), -length/2, 1 );
+        Top_Ring.push_back(top_vert);
+        Vector4 bot_vert = mat * Vector4( radius*sin(angle), radius*cos(angle),  length/2, 1 );
+        Bot_Ring.push_back(bot_vert);
+    }
+
+
+    for(int ii=0;ii<num_facets;ii++){
+        int idx1=ii;
+        int idx2=(ii+1)%num_facets;
+
+        //Top Pinwheel
+        AddColorTri( Top,Top_Ring[idx1],Top_Ring[idx2],color,Vertices,Indices);
+
+        //Bottom Pinwheel
+        AddColorTri( Bot,Bot_Ring[idx1],Bot_Ring[idx2],color,Vertices,Indices);
+
+        //Side
+        AddColorTri( Bot_Ring[idx1],Bot_Ring[idx2],Top_Ring[idx2],color,Vertices,Indices);
+        AddColorTri( Top_Ring[idx2],Top_Ring[idx1],Bot_Ring[idx1],color,Vertices,Indices);
+
+    }
+}
+
 
 void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* node)
 {
