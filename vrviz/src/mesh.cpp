@@ -222,74 +222,54 @@ void Mesh::InitMarker(float scaling_factor)
     Matrix4 mat4;
     mat4.translate(pt.x,pt.y,pt.z);
 
+    Vector3 color(marker.color.r,
+                  marker.color.g,
+                  marker.color.b);
+    Matrix4 mat5;
+    tf::Quaternion q(marker.pose.orientation.x,
+                     marker.pose.orientation.y,
+                     marker.pose.orientation.z,
+                     marker.pose.orientation.w);
+    tf::Matrix3x3 m(q);
+    mat5.set(m.getColumn(0).getX(),
+             m.getColumn(0).getY(),
+             m.getColumn(0).getZ(),0,
+             m.getColumn(1).getX(),
+             m.getColumn(1).getY(),
+             m.getColumn(1).getZ(),0,
+             m.getColumn(2).getX(),
+             m.getColumn(2).getY(),
+             m.getColumn(2).getZ(),0,
+             0,0,0,1);
+
+    //mat5.rotate(q.getAngle(),q.getAxis().getX(),q.getAxis().getY(),q.getAxis().getZ());
+    Matrix4 mat6 = mat4*mat5;
+
+    Vector3 radius(marker.scale.x/2.0*scaling_factor,marker.scale.y/2.0*scaling_factor,marker.scale.z/2.0*scaling_factor);
+
     if(marker.type==visualization_msgs::Marker::ARROW){
 
 
     }else if(marker.type==visualization_msgs::Marker::CUBE){
-        Vector3 radius(marker.scale.x/2.0*scaling_factor,marker.scale.y/2.0*scaling_factor,marker.scale.z/2.0*scaling_factor);
-        Vector3 color(marker.color.r,
-                      marker.color.g,
-                      marker.color.b);
-        Matrix4 mat5;
-        tf::Quaternion q(marker.pose.orientation.x,
-                         marker.pose.orientation.y,
-                         marker.pose.orientation.z,
-                         marker.pose.orientation.w);
-        tf::Matrix3x3 m(q);
-        mat5.set(m.getColumn(0).getX(),
-                 m.getColumn(0).getY(),
-                 m.getColumn(0).getZ(),0,
-                 m.getColumn(1).getX(),
-                 m.getColumn(1).getY(),
-                 m.getColumn(1).getZ(),0,
-                 m.getColumn(2).getX(),
-                 m.getColumn(2).getY(),
-                 m.getColumn(2).getZ(),0,
-                 0,0,0,1);
 
-        Matrix4 mat6 = mat4*mat5;
         InitCube(Vertices,Indices,radius,color,mat6);
     }else if(marker.type==visualization_msgs::Marker::SPHERE){
-        float radius=marker.scale.x/2.0*scaling_factor; /// scale.x should be diameter
-        Vector3 color(marker.color.r,
-                      marker.color.g,
-                      marker.color.b);
-        InitSphere(Vertices,Indices,radius,color,pt);
-
+        /// scale.x should be diameter, so radius.x is radius
+        InitSphere(Vertices,Indices,radius.x,color,pt);
     }else if(marker.type==visualization_msgs::Marker::CYLINDER){
-        float radius=marker.scale.x/2.0*scaling_factor; /// scale.x is diameter in x direction (currently don't support ellipse)
+        /// scale.x is diameter in x direction (currently don't support ellipse)
         float length=marker.scale.z*scaling_factor; /// Use scale.z to specify the height.
-        Vector3 color(marker.color.r,
-                      marker.color.g,
-                      marker.color.b);
-        Matrix4 mat5;
-        tf::Quaternion q(marker.pose.orientation.x,
-                         marker.pose.orientation.y,
-                         marker.pose.orientation.z,
-                         marker.pose.orientation.w);
-        tf::Matrix3x3 m(q);
-        mat5.set(m.getColumn(0).getX(),
-                 m.getColumn(0).getY(),
-                 m.getColumn(0).getZ(),0,
-                 m.getColumn(1).getX(),
-                 m.getColumn(1).getY(),
-                 m.getColumn(1).getZ(),0,
-                 m.getColumn(2).getX(),
-                 m.getColumn(2).getY(),
-                 m.getColumn(2).getZ(),0,
-                 0,0,0,1);
-
-        //mat5.rotate(q.getAngle(),q.getAxis().getX(),q.getAxis().getY(),q.getAxis().getZ());
-        Matrix4 mat6 = mat4*mat5;
-        //pVRVizApplication->AddCylinderToScene(mat6,colorvertdataarray,radius,length,color);
-        InitCylinder(Vertices,Indices,mat6,radius,length,color);
+        InitCylinder(Vertices,Indices,mat6,radius.x,length,color);
     }else if(marker.type==visualization_msgs::Marker::TEXT_VIEW_FACING){
         float height=marker.scale.z*scaling_factor; /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
         //pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,marker.text,height);
+    }else if(marker.type==visualization_msgs::Marker::TRIANGLE_LIST){
+        InitTriangles(Vertices,Indices,mat6,radius,marker.points,marker.colors,color);
     }
 
     m_Entries[0].Init(Vertices,Indices);
     initialized=true;
+    needs_update=false;
 }
 
 void Mesh::InitCube(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Vector3 radius, Vector3 color, Matrix4 mat )
@@ -410,6 +390,26 @@ void Mesh::InitCylinder( std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, st
         AddColorTri( Bot_Ring[idx1],Bot_Ring[idx2],Top_Ring[idx2],color,Vertices,Indices);
         AddColorTri( Top_Ring[idx2],Top_Ring[idx1],Bot_Ring[idx1],color,Vertices,Indices);
 
+    }
+}
+
+void Mesh::InitTriangles(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices,Matrix4 mat, Vector3 radius,std::vector<geometry_msgs::Point> &points,std::vector<std_msgs::ColorRGBA> &colors, Vector3 default_color){
+    /// If the points aren't a multiple of 3, something is wrong
+    assert(points.size()%3==0);
+    Vector4 scale(radius.x*2.0,radius.y*2.0,radius.z*2.0,1.0);
+    for(int idx=0;idx<points.size()/3;idx++){
+        Vector3 color=default_color;
+//        if(colors.size()>idx*3){
+//            /// Only grabbing one color
+//            color.x=colors[idx*3].r;
+//            color.y=colors[idx*3].g;
+//            color.z=colors[idx*3].b;
+//        }
+        Vector4 p1 = mat * (Vector4( points[idx*3+0].x, points[idx*3+0].y, points[idx*3+0].z, 1.0 )*scale);
+        Vector4 p2 = mat * (Vector4( points[idx*3+1].x, points[idx*3+1].y, points[idx*3+1].z, 1.0 )*scale);
+        Vector4 p3 = mat * (Vector4( points[idx*3+2].x, points[idx*3+2].y, points[idx*3+2].z, 1.0 )*scale);
+
+        AddColorTri( p1,p2,p3,color,Vertices,Indices);
     }
 }
 

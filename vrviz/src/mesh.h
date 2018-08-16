@@ -80,6 +80,7 @@ public:
     std::string frame_id;
     bool has_texture;
     bool initialized;
+    bool needs_update;
 
     visualization_msgs::Marker marker;
 
@@ -96,6 +97,7 @@ private:
     void InitCube(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Vector3 radius, Vector3 color, Matrix4 mat );
     void InitSphere(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, float radius, Vector3 color, Vector4 center, int num_lat=8, int num_lon=0 );
     void InitCylinder( std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Matrix4 mat, float radius, float length, Vector3 color, int num_facets=12 );
+    void InitTriangles(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices,Matrix4 mat,Vector3 radius, std::vector<geometry_msgs::Point> &points,std::vector<std_msgs::ColorRGBA> &colors, Vector3 default_color);
     void InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* node);
     bool InitMaterials(const aiScene* pScene, const std::string& Filename);
     void Clear();

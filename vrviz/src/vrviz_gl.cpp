@@ -93,7 +93,6 @@ cv::Mat image_received;
 /// \warning These arrays are edited by the ROS callback, and read by the VR code! This is probably NOT THREADSAFE!
 
 std::vector<float> color_points_vertdataarray;
-std::vector<float> color_tris_vertdataarray;
 std::vector<float> textured_tris_vertdataarray;
 
 
@@ -231,6 +230,7 @@ private:
     void RenderControllerAxes()
     {
         std::vector<float> vertdataarray;
+        //m_uiControllerVertcount=0;
         if(show_tf){
             /// Show the 3 axis of every frame in our cache
             for(int ii=0;ii<tf_cache.size();ii++){
@@ -436,42 +436,8 @@ private:
             glBufferData( GL_ARRAY_BUFFER, sizeof(float) * color_points_vertdataarray.size(), &color_points_vertdataarray[0], GL_STREAM_DRAW );
         }
 
-
-        // Setup the VAO the first time through.
-        if ( m_unColorTrisVAO == 0 )
-        {
-            glGenVertexArrays( 1, &m_unColorTrisVAO );
-            glBindVertexArray( m_unColorTrisVAO );
-
-            glGenBuffers( 1, &m_glColorTrisVertBuffer );
-            glBindBuffer( GL_ARRAY_BUFFER, m_glColorTrisVertBuffer );
-
-            GLuint stride = 2 * 3 * sizeof( float );
-            uintptr_t offset = 0;
-
-            glEnableVertexAttribArray( 0 );
-            glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset);
-
-            offset += sizeof( Vector3 );
-            glEnableVertexAttribArray( 1 );
-            glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, stride, (const void *)offset);
-
-            glBindVertexArray( 0 );
-        }
-
-        glBindBuffer( GL_ARRAY_BUFFER, m_glColorTrisVertBuffer );
-
-        // set vertex data if we have some
-        if( color_tris_vertdataarray.size() > 0 )
-        {
-            //$ TODO: Use glBufferSubData for this...
-            m_uiColorTrisVertcount = color_tris_vertdataarray.size()/6;
-            glBufferData( GL_ARRAY_BUFFER, sizeof(float) * color_tris_vertdataarray.size(), &color_tris_vertdataarray[0], GL_STREAM_DRAW );
-        }
-
-
         for(int idx=0;idx<robot_meshes.size();idx++){
-            if(!robot_meshes[idx]->initialized){
+            if(robot_meshes[idx]->needs_update){
 
                 robot_meshes[idx]->InitMarker(scaling_factor);
             }
@@ -734,6 +700,7 @@ private:
                     u_int64_t buttons[2];
                     buttons[0]=state.ulButtonPressed;
                     buttons[1]=state.ulButtonTouched;
+                    //ROS_WARN("buttons[0]=%ul,buttons[1]=%ul",buttons[0],buttons[1]);
 
                     int idx=0; /// These are cast to bool so that they are 0 or 1, and because bits past 32 would be ignored by the message
                     joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_System)));
@@ -917,6 +884,57 @@ private:
 
 VRVizApplication *pVRVizApplication;
 
+/*!
+ * \brief are markers equal in content
+ *
+ * \warning this may err on the side of not equal, e.g. tiny changes in floats will count as a change
+ *
+ * \note This could be made faster by checking type first, then only checking things relevant to that type
+ *
+ * \param marker1 first marker
+ * \param marker2 second marker
+ * \return true if content of markers is identical
+ */
+bool markers_equal(visualization_msgs::Marker marker1,visualization_msgs::Marker marker2){
+    if(marker1.header.frame_id!=marker2.header.frame_id){return false;}
+//    if(marker1.ns!=marker2.ns){return false;}
+//    if(marker1.id!=marker2.id){return false;}
+//    if(marker1.type!=marker2.type){return false;}
+//    if(marker1.action!=marker2.action){return false;}
+    if(marker1.pose.position.x!=marker2.pose.position.x){return false;}
+    if(marker1.pose.position.y!=marker2.pose.position.y){return false;}
+    if(marker1.pose.position.z!=marker2.pose.position.z){return false;}
+    if(marker1.pose.orientation.x!=marker2.pose.orientation.x){return false;}
+    if(marker1.pose.orientation.y!=marker2.pose.orientation.y){return false;}
+    if(marker1.pose.orientation.z!=marker2.pose.orientation.z){return false;}
+    if(marker1.pose.orientation.w!=marker2.pose.orientation.w){return false;}
+    if(marker1.scale.x!=marker2.scale.x){return false;}
+    if(marker1.scale.y!=marker2.scale.y){return false;}
+    if(marker1.scale.z!=marker2.scale.z){return false;}
+    if(marker1.color.r!=marker2.color.r){return false;}
+    if(marker1.color.g!=marker2.color.g){return false;}
+    if(marker1.color.b!=marker2.color.b){return false;}
+    if(marker1.color.a!=marker2.color.a){return false;}
+    if(marker1.text!=marker2.text){return false;}
+    if(marker1.points.size()!=marker2.points.size()){return false;}
+    for(int idx=0;idx<marker1.points.size();idx++){
+        if(marker1.points[idx].x!=marker2.points[idx].x){return false;}
+        if(marker1.points[idx].y!=marker2.points[idx].y){return false;}
+        if(marker1.points[idx].z!=marker2.points[idx].z){return false;}
+    }
+    if(marker1.colors.size()!=marker2.colors.size()){return false;}
+    for(int idx=0;idx<marker1.colors.size();idx++){
+        if(marker1.colors[idx].r!=marker2.colors[idx].r){return false;}
+        if(marker1.colors[idx].g!=marker2.colors[idx].g){return false;}
+        if(marker1.colors[idx].b!=marker2.colors[idx].b){return false;}
+        if(marker1.colors[idx].a!=marker2.colors[idx].a){return false;}
+    }
+    if(marker1.text!=marker2.text){return false;}
+    if(marker1.mesh_resource!=marker2.mesh_resource){return false;}
+    if(marker1.mesh_use_embedded_materials!=marker2.mesh_use_embedded_materials){return false;}
+    return true;
+}
+
 int find_or_add_marker(visualization_msgs::Marker marker){
     if(!pVRVizApplication){
         return -1;
@@ -924,12 +942,21 @@ int find_or_add_marker(visualization_msgs::Marker marker){
     for(int idx=0;idx<pVRVizApplication->robot_meshes.size();idx++){
         if(pVRVizApplication->robot_meshes[idx]->id==marker.id && pVRVizApplication->robot_meshes[idx]->name==marker.ns){
             /// We already have something with this namespace and ID.
-//            pVRVizApplication->robot_meshes[idx]->marker=marker;
-//            pVRVizApplication->robot_meshes[idx]->initialized=false;
+            /// Check if this marker is different (other than the timestamp)
+            if(!markers_equal(pVRVizApplication->robot_meshes[idx]->marker,marker)){
+                /// Copy over the new data, and raise  flag telling it to be updated
+                pVRVizApplication->robot_meshes[idx]->marker=marker;
+                pVRVizApplication->robot_meshes[idx]->needs_update=true;
+            }else{
+                /// Nothing has changed, but at least update the timestamp so we know it's updated lifetime
+                pVRVizApplication->robot_meshes[idx]->marker.header.stamp=marker.header.stamp;
+            }
+
             return idx;
         }
     }
 
+    /// We didn't find it in our existing meshes, so make a new one
     Mesh* myMesh = new Mesh;
     myMesh->name=marker.ns;
     myMesh->id=marker.id;
@@ -946,6 +973,7 @@ int find_or_add_marker(visualization_msgs::Marker marker){
     myMesh->fallback_texture_filename=fallback_texture_filename;
     myMesh->marker=marker;
     myMesh->initialized=false;
+    myMesh->needs_update=true;
     pVRVizApplication->robot_meshes.push_back(myMesh);
     return -2;
 }
@@ -964,16 +992,34 @@ int find_or_add_marker(visualization_msgs::Marker marker){
 void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
 {
     std::vector<float> texturedvertdataarray;
-    std::vector<float> colorvertdataarray;
 
     for(int ii=0;ii<msg->markers.size();ii++)
     {
         find_or_add_marker(msg->markers[ii]);
+        if(msg->markers[ii].type==visualization_msgs::Marker::TEXT_VIEW_FACING){
+
+            Vector4 pt;
+            /// We scale up from real world units to 'vr units'
+            pt.x=msg->markers[ii].pose.position.x*scaling_factor;
+            pt.y=msg->markers[ii].pose.position.y*scaling_factor;
+            pt.z=msg->markers[ii].pose.position.z*scaling_factor;
+            pt.w=1.f;
+
+            Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(msg->markers[ii].header.frame_id);
+
+            Matrix4 matTransform4;
+            matTransform4.translate(pt.x,pt.y,pt.z);
+            Matrix4 mat4 = mat * matTransform4;
+
+            /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
+            float height=msg->markers[ii].scale.z*scaling_factor;
+
+            pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,msg->markers[ii].text,height);
+        }
     }
     /// Copy the data over to the shared data
     /// \todo This should be protected with a mutex of sorts!
     textured_tris_vertdataarray=texturedvertdataarray;
-    color_tris_vertdataarray=colorvertdataarray;
     scene_update_needed=true;
 }
 
@@ -1192,6 +1238,7 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
     if(myMesh->LoadMesh(mod_url)){
         ROS_INFO("Loaded %s's mesh:%s",name.c_str(),mod_url.c_str());
         myMesh->initialized=true;
+        myMesh->needs_update=false;
         pVRVizApplication->robot_meshes.push_back(myMesh);
     }else{
         ROS_ERROR("Could not load mesh file %s",mod_url.c_str());
@@ -1308,7 +1355,7 @@ int main(int argc, char *argv[])
     pVRVizApplication->setScale(scaling_factor);
     pVRVizApplication->setPointSize(point_size);
     pVRVizApplication->setTextPath(vrviz_include_path + texture_filename);
-    pVRVizApplication->setActionManifestPath(vrviz_include_path + "/vrviz_actions.json");
+    //pVRVizApplication->setActionManifestPath(vrviz_include_path + "/vrviz_actions.json");
     fallback_texture_filename = vrviz_include_path + fallback_texture_filename;
 
     /// Try initializing the application - this will try to connect to a VR headset
