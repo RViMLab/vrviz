@@ -133,12 +133,28 @@ protected:
 	bool m_bGlFinishHack;
 
 	vr::IVRSystem *m_pHMD;
-	vr::IVRRenderModels *m_pRenderModels;
 	std::string m_strDriver;
 	std::string m_strDisplay;
 	vr::TrackedDevicePose_t m_rTrackedDevicePose[ vr::k_unMaxTrackedDeviceCount ];
 	Matrix4 m_rmat4DevicePose[ vr::k_unMaxTrackedDeviceCount ];
-	bool m_rbShowTrackedDevice[ vr::k_unMaxTrackedDeviceCount ];
+	
+	struct ControllerInfo_t
+	{
+		vr::VRInputValueHandle_t m_source = vr::k_ulInvalidInputValueHandle;
+		vr::VRActionHandle_t m_actionPose = vr::k_ulInvalidActionHandle;
+		vr::VRActionHandle_t m_actionHaptic = vr::k_ulInvalidActionHandle;
+		Matrix4 m_rmat4Pose;
+		CGLRenderModel *m_pRenderModel = nullptr;
+		std::string m_sRenderModelName;
+		bool m_bShowController;
+	};
+
+	enum EHand
+	{
+		Left = 0,
+		Right = 1,
+	};
+	ControllerInfo_t m_rHand[2];
 
 // SDL bookkeeping
 	SDL_Window *m_pCompanionWindow;
@@ -153,6 +169,7 @@ protected:
 	int m_iValidPoseCount;
 	int m_iValidPoseCount_Last;
 	bool m_bShowCubes;
+	Vector2 m_vAnalogValue;
 
 	std::string m_strPoseClasses;                            // what classes we saw poses for this frame
 	char m_rDevClassChar[ vr::k_unMaxTrackedDeviceCount ];   // for each device, a character representing its class
@@ -297,8 +314,83 @@ protected:
 	uint32_t m_nRenderHeight;
 
 	std::vector< CGLRenderModel * > m_vecRenderModels;
-	CGLRenderModel *m_rTrackedDeviceToRenderModel[ vr::k_unMaxTrackedDeviceCount ];
+
+    vr::VRActionHandle_t m_actionMoveWorld = vr::k_ulInvalidActionHandle;
+    vr::VRActionHandle_t m_actionTwistCommand = vr::k_ulInvalidActionHandle;
+    vr::VRActionHandle_t m_actionResetGame = vr::k_ulInvalidActionHandle;
+    vr::VRActionHandle_t m_actionTriggerHaptic = vr::k_ulInvalidActionHandle;
+	vr::VRActionHandle_t m_actionAnalongInput = vr::k_ulInvalidActionHandle;
+
+    vr::VRActionSetHandle_t m_actionsetVrviz = vr::k_ulInvalidActionSetHandle;
 };
+
+//---------------------------------------------------------------------------------------------------------------------
+// Purpose: Returns true if the action is active and had a rising edge
+//---------------------------------------------------------------------------------------------------------------------
+bool inline GetDigitalActionRisingEdge(vr::VRActionHandle_t action, vr::VRInputValueHandle_t *pDevicePath = nullptr )
+{
+    vr::InputDigitalActionData_t actionData;
+    vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
+    if (pDevicePath)
+    {
+        *pDevicePath = vr::k_ulInvalidInputValueHandle;
+        if (actionData.bActive)
+        {
+            vr::InputOriginInfo_t originInfo;
+            if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
+            {
+                *pDevicePath = originInfo.devicePath;
+            }
+        }
+    }
+    return actionData.bActive && actionData.bChanged && actionData.bState;
+}
+
+
+//---------------------------------------------------------------------------------------------------------------------
+// Purpose: Returns true if the action is active and had a falling edge
+//---------------------------------------------------------------------------------------------------------------------
+bool inline GetDigitalActionFallingEdge(vr::VRActionHandle_t action, vr::VRInputValueHandle_t *pDevicePath = nullptr )
+{
+    vr::InputDigitalActionData_t actionData;
+    vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
+    if (pDevicePath)
+    {
+        *pDevicePath = vr::k_ulInvalidInputValueHandle;
+        if (actionData.bActive)
+        {
+            vr::InputOriginInfo_t originInfo;
+            if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
+            {
+                *pDevicePath = originInfo.devicePath;
+            }
+        }
+    }
+    return actionData.bActive && actionData.bChanged && !actionData.bState;
+}
+
+
+//---------------------------------------------------------------------------------------------------------------------
+// Purpose: Returns true if the action is active and its state is true
+//---------------------------------------------------------------------------------------------------------------------
+bool inline GetDigitalActionState(vr::VRActionHandle_t action, vr::VRInputValueHandle_t *pDevicePath = nullptr )
+{
+    vr::InputDigitalActionData_t actionData;
+    vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
+    if (pDevicePath)
+    {
+        *pDevicePath = vr::k_ulInvalidInputValueHandle;
+        if (actionData.bActive)
+        {
+            vr::InputOriginInfo_t originInfo;
+            if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
+            {
+                *pDevicePath = originInfo.devicePath;
+            }
+        }
+    }
+    return actionData.bActive && actionData.bState;
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Outputs a set of optional arguments to debugging output, using

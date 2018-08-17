@@ -234,18 +234,18 @@ private:
         if(show_tf){
             /// Show the 3 axis of every frame in our cache
             for(int ii=0;ii<tf_cache.size();ii++){
-                add_frame_to_scene(tf_cache[ii].transform,vertdataarray,0.1);
+                add_frame_to_scene(tf_cache[ii].transform,vertdataarray,0.1/scaling_factor);
             }
         }
         if(pressed_id!=-1){
             /// Show the frames we are using to calculate twist commands
-            add_frame_to_scene(previous_trans_mat,vertdataarray,0.05);
-            add_frame_to_scene(current_trans_mat ,vertdataarray,0.07);
+            add_frame_to_scene(previous_trans_mat,vertdataarray,0.05/scaling_factor);
+            add_frame_to_scene(current_trans_mat ,vertdataarray,0.07/scaling_factor);
         }
         if(move_id!=-1){
             /// Show the frames we are using to move the scene
-            add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05);
-            add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07);
+            add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05/scaling_factor);
+            add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07/scaling_factor);
         }
         if(show_grid){
             add_grid_to_scene(vertdataarray);
@@ -666,6 +666,148 @@ private:
 
         geometry_msgs::Twist twist_msg;
 
+        vr::VRInputValueHandle_t ulTwistCommand;
+        if ( GetDigitalActionState( m_actionTwistCommand, &ulTwistCommand ) )
+        {
+
+
+            for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
+            {
+
+                int controller_id=eHand+1;
+                const Matrix4 & mat = m_rHand[eHand].m_rmat4Pose;
+                tf::Transform current_trans=TfTransform(mat);
+
+                if(ulTwistCommand == m_rHand[eHand].m_source){
+                    if(pressed_id==controller_id){
+                        ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
+                        /// We already knew they pressed this trigger
+                        /// So check to see how much has changed since then.
+                        /// \note we are implicitly setting Kp=1.0
+                        tf::Transform trans = previous_trans.inverseTimes(current_trans);
+                        tf::Matrix3x3 r(trans.getRotation());
+                        double roll,pitch,yaw;
+                        r.getEulerYPR(yaw,pitch,roll);
+                        twist_msg.angular.x=roll;
+                        twist_msg.angular.z=pitch;
+                        twist_msg.angular.y=yaw;
+                        twist_msg.linear.x=trans.getOrigin().getX();
+                        twist_msg.linear.y=trans.getOrigin().getY();
+                        twist_msg.linear.z=trans.getOrigin().getZ();
+
+                        previous_trans_mat = VrTransform(tf::StampedTransform(previous_trans,ros::Time::now(),"foo","bar"));
+                        current_trans_mat  = VrTransform(tf::StampedTransform(current_trans,ros::Time::now(),"foo","bar"));
+                    }else if(pressed_id==-1){
+                        /// This is the first we have heard about this
+                        pressed_id=controller_id;
+                        previous_trans=current_trans;
+                        ROS_WARN("Pressed down on controller %d",controller_id);
+                    }else{
+                        ROS_WARN_THROTTLE(2.0,"Please don't press both triggers simultaneously...");
+                    }
+                }else{
+                    if(pressed_id==controller_id){
+                        /// We thought they pressed this trigger, but it appears not anymore
+                        ROS_WARN("Released controller %d",controller_id);
+                        pressed_id=-1;
+                        move_trans_mat_old = move_trans_mat;
+                    }
+                }
+
+            }
+        }else if(pressed_id!=-1){
+            ROS_WARN("Released all controllers");
+            pressed_id=-1;
+            move_trans_mat_old = move_trans_mat;
+        }
+        twist_pub.publish(twist_msg);
+
+
+        vr::VRInputValueHandle_t ulMoveWorld;
+        if ( GetDigitalActionState( m_actionMoveWorld, &ulMoveWorld ) )
+        {
+
+
+            for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
+            {
+
+                int controller_id=eHand+1;
+                const Matrix4 & mat = m_rHand[eHand].m_rmat4Pose;
+
+                if(ulMoveWorld == m_rHand[eHand].m_source){
+                    if(move_id==controller_id){
+                        ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
+                        move_current_trans_mat  = mat;
+                        Matrix4 move_current_trans_mat_inverse = move_current_trans_mat;
+                        move_current_trans_mat_inverse.invert();
+                        move_trans_mat = move_trans_mat_old * (move_previous_trans_mat * move_current_trans_mat_inverse);
+                    }else if(move_id==-1){
+                        /// This is the first we have heard about this
+                        move_id=controller_id;
+                        move_previous_trans_mat=mat;
+                        ROS_WARN("Pressed down on controller %d",controller_id);
+                    }else{
+                        ROS_WARN_THROTTLE(2.0,"Please don't press both triggers simultaneously...");
+                    }
+                }else{
+                    if(move_id==controller_id){
+                        /// We thought they pressed this trigger, but it appears not anymore
+                        ROS_WARN("Released controller %d",controller_id);
+                        move_id=-1;
+                        move_trans_mat_old = move_trans_mat;
+                    }
+                }
+
+            }
+        }else if(move_id!=-1){
+            ROS_WARN("Released all controllers");
+            move_id=-1;
+            move_trans_mat_old = move_trans_mat;
+        }
+
+
+
+        for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
+        {
+
+            int controller_id=eHand+1;
+            const Matrix4 & mat = m_rHand[eHand].m_rmat4Pose;
+
+            std::stringstream ss;
+            ss << frame_prefix << "_controller_" << controller_id;
+            /// Publish the transform of the end effector relative to the base
+            tf::Transform current_trans=TfTransform(mat);
+            broadcaster->sendTransform(tf::StampedTransform(current_trans, ros::Time::now(), intermediate_frame, ss.str() ));
+
+            sensor_msgs::Joy joy_msg;
+            joy_msg.header.frame_id=ss.str();
+            joy_msg.header.stamp=ros::Time::now();
+            {
+                vr::VRInputValueHandle_t ulHandle;
+                joy_msg.buttons.push_back( bool ( GetDigitalActionState( m_actionMoveWorld, &ulHandle ) && ulHandle == m_rHand[eHand].m_source ) );
+            }
+            {
+                vr::VRInputValueHandle_t ulHandle;
+                joy_msg.buttons.push_back( bool ( GetDigitalActionState( m_actionResetGame, &ulHandle ) && ulHandle == m_rHand[eHand].m_source ) );
+            }
+            {
+                vr::VRInputValueHandle_t ulHandle;
+                joy_msg.buttons.push_back( bool ( GetDigitalActionState( m_actionTwistCommand, &ulHandle ) && ulHandle == m_rHand[eHand].m_source ) );
+            }
+            {
+
+                vr::VRInputValueHandle_t ulHandle = m_rHand[eHand].m_source;
+                vr::InputAnalogActionData_t analogData;
+                if ( vr::VRInput()->GetAnalogActionData( m_actionAnalongInput, &analogData, sizeof( analogData ), ulHandle ) == vr::VRInputError_None )
+                {
+                    joy_msg.axes.push_back(analogData.x);
+                    joy_msg.axes.push_back(analogData.y);
+                }
+
+            }
+            controller_pub[controller_id].publish(joy_msg);
+        }
+
         int controller_id=0;
         for ( vr::TrackedDeviceIndex_t unTrackedDevice = vr::k_unTrackedDeviceIndex_Hmd + 1; unTrackedDevice < vr::k_unMaxTrackedDeviceCount; ++unTrackedDevice )
         {
@@ -684,101 +826,11 @@ private:
 
             controller_id++;
             std::stringstream ss;
-            ss << frame_prefix << "_controller_" << controller_id;
+            ss << frame_prefix << "_depricated_" << controller_id;
             /// Publish the transform of the end effector relative to the base
             tf::Transform current_trans=TfTransform(mat);
             broadcaster->sendTransform(tf::StampedTransform(current_trans, ros::Time::now(), intermediate_frame, ss.str() ));
-
-            if(controller_id<3){
-                sensor_msgs::Joy joy_msg;
-                joy_msg.header.frame_id=ss.str();
-                joy_msg.header.stamp=ros::Time::now();
-
-                vr::VRControllerState_t state;
-                if( m_pHMD->GetControllerState( unTrackedDevice, &state, sizeof(state) ) )
-                {
-                    u_int64_t buttons[2];
-                    buttons[0]=state.ulButtonPressed;
-                    buttons[1]=state.ulButtonTouched;
-                    //ROS_WARN("buttons[0]=%ul,buttons[1]=%ul",buttons[0],buttons[1]);
-
-                    int idx=0; /// These are cast to bool so that they are 0 or 1, and because bits past 32 would be ignored by the message
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_System)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_ApplicationMenu)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Grip)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_DPad_Left)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_DPad_Up)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_DPad_Right)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_DPad_Down)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_A)));
-
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_ProximitySensor)));
-
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Axis0)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Axis1)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Axis2)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Axis3)));
-                    joy_msg.buttons.push_back( bool ( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_Axis4)));
-
-                    if(( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Trigger))){
-                        if(pressed_id==controller_id){
-                            /// We already knew they pressed this trigger
-                            /// So check to see how much has changed since then.
-                            /// \note we are implicitly setting Kp=1.0
-                            tf::Transform trans = previous_trans.inverseTimes(current_trans);
-                            tf::Matrix3x3 r(trans.getRotation());
-                            double roll,pitch,yaw;
-                            r.getEulerYPR(yaw,pitch,roll);
-                            twist_msg.angular.x=roll;
-                            twist_msg.angular.z=pitch;
-                            twist_msg.angular.y=yaw;
-                            twist_msg.linear.x=trans.getOrigin().getX();
-                            twist_msg.linear.y=trans.getOrigin().getY();
-                            twist_msg.linear.z=trans.getOrigin().getZ();
-
-                            previous_trans_mat = VrTransform(tf::StampedTransform(previous_trans,ros::Time::now(),"foo","bar"));
-                            current_trans_mat  = VrTransform(tf::StampedTransform(current_trans,ros::Time::now(),"foo","bar"));
-                        }else if(pressed_id==-1){
-                            /// This is the first we have heard about this
-                            pressed_id=controller_id;
-                            previous_trans=current_trans;
-                        }else{
-                            ROS_WARN_THROTTLE(2.0,"Please don't press both triggers simultaneously...");
-                        }
-                    }else{
-                        if(pressed_id==controller_id){
-                            /// We thought they pressed this trigger, but it appears not anymore
-                            pressed_id=-1;
-                        }
-                    }
-                    if(( buttons[idx] & vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad))){
-                        if(move_id==controller_id){
-                            move_current_trans_mat  = mat;
-                            Matrix4 move_current_trans_mat_inverse = move_current_trans_mat;
-                            move_current_trans_mat_inverse.invert();
-                            move_trans_mat = move_trans_mat_old * (move_previous_trans_mat * move_current_trans_mat_inverse);
-                        }else if(move_id==-1){
-                            /// This is the first we have heard about this
-                            move_id=controller_id;
-                            move_previous_trans_mat=mat;
-                        }else{
-                            ROS_WARN_THROTTLE(2.0,"Please don't press both triggers simultaneously...");
-                        }
-                    }else{
-                        if(move_id==controller_id){
-                            /// We thought they pressed this trigger, but it appears not anymore
-                            move_id=-1;
-                            move_trans_mat_old = move_trans_mat;
-                        }
-                    }
-                }else{
-                    ROS_WARN_THROTTLE(2.0,"Error getting controller state");
-                }
-
-                controller_pub[controller_id].publish(joy_msg);
-            }
         }
-        twist_pub.publish(twist_msg);
 
     }
 
@@ -1355,7 +1407,7 @@ int main(int argc, char *argv[])
     pVRVizApplication->setScale(scaling_factor);
     pVRVizApplication->setPointSize(point_size);
     pVRVizApplication->setTextPath(vrviz_include_path + texture_filename);
-    //pVRVizApplication->setActionManifestPath(vrviz_include_path + "/vrviz_actions.json");
+    pVRVizApplication->setActionManifestPath(vrviz_include_path + "/vrviz_actions.json");
     fallback_texture_filename = vrviz_include_path + fallback_texture_filename;
 
     /// Try initializing the application - this will try to connect to a VR headset

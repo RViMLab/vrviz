@@ -54,81 +54,81 @@ void publishCallback(const ros::TimerEvent&)
         marker.text="USE WAND TRIGGER TO DRIVE";
         msg.markers.push_back(marker);
     }
-    {
-        /// Add some instructions for the demo
-        visualization_msgs::Marker marker;
-        marker.header.frame_id = "/vrviz_base";
-        marker.header.stamp = ros::Time::now();
-        marker.ns = "sphere";
-        marker.id = 0;
-        marker.type = visualization_msgs::Marker::SPHERE;
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = 0.2;
-        marker.pose.position.y = 0.7;
-        marker.pose.position.z =-0.2;
-        marker.scale.x = 0.10;
-        marker.scale.y = 0.10;
-        marker.scale.z = 0.10;
-        marker.pose.orientation.x = 0.0;
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;
-        marker.color.r=1.0;
-        marker.color.g=0.0;
-        marker.color.b=0.0;
-        marker.color.a=1.0;
-        msg.markers.push_back(marker);
-    }
-    {
-        /// Add some instructions for the demo
-        visualization_msgs::Marker marker;
-        marker.header.frame_id = "/vrviz_base";
-        marker.header.stamp = ros::Time::now();
-        marker.ns = "cube";
-        marker.id = 0;
-        marker.type = visualization_msgs::Marker::CUBE;
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x =-0.5;
-        marker.pose.position.y = 0.7;
-        marker.pose.position.z =-0.5;
-        marker.scale.x = 0.3;
-        marker.scale.y = 0.5;
-        marker.scale.z = 0.7;
-        marker.pose.orientation.x = 0.146629;
-        marker.pose.orientation.y = 0.311454;
-        marker.pose.orientation.z = 0.733143;
-        marker.pose.orientation.w = 0.586514;
-        marker.color.r=0.0;
-        marker.color.g=1.0;
-        marker.color.b=0.0;
-        marker.color.a=1.0;
-        msg.markers.push_back(marker);
-    }
-    {
-        /// Add some instructions for the demo
-        visualization_msgs::Marker marker;
-        marker.header.frame_id = "/vrviz_base";
-        marker.header.stamp = ros::Time::now();
-        marker.ns = "cylinder";
-        marker.id = 0;
-        marker.type = visualization_msgs::Marker::CYLINDER;
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = 0.5;
-        marker.pose.position.y = 0.7;
-        marker.pose.position.z =-0.5;
-        marker.scale.x = 0.2;
-        marker.scale.y = 0.2;
-        marker.scale.z = 0.5;
-        marker.pose.orientation.x = 0.443047;
-        marker.pose.orientation.y = 0.235269;
-        marker.pose.orientation.z = 0.553809;
-        marker.pose.orientation.w = 0.664570;
-        marker.color.r=0.0;
-        marker.color.g=0.0;
-        marker.color.b=1.0;
-        marker.color.a=1.0;
-        msg.markers.push_back(marker);
-    }
+//    {
+//        /// Add some silly shapes
+//        visualization_msgs::Marker marker;
+//        marker.header.frame_id = "/vrviz_base";
+//        marker.header.stamp = ros::Time::now();
+//        marker.ns = "sphere";
+//        marker.id = 0;
+//        marker.type = visualization_msgs::Marker::SPHERE;
+//        marker.action = visualization_msgs::Marker::ADD;
+//        marker.pose.position.x = 0.2;
+//        marker.pose.position.y = 0.7;
+//        marker.pose.position.z =-0.2;
+//        marker.scale.x = 0.10;
+//        marker.scale.y = 0.10;
+//        marker.scale.z = 0.10;
+//        marker.pose.orientation.x = 0.0;
+//        marker.pose.orientation.y = 0.0;
+//        marker.pose.orientation.z = 0.0;
+//        marker.pose.orientation.w = 1.0;
+//        marker.color.r=1.0;
+//        marker.color.g=0.0;
+//        marker.color.b=0.0;
+//        marker.color.a=1.0;
+//        msg.markers.push_back(marker);
+//    }
+//    {
+//        /// Add some silly shapes
+//        visualization_msgs::Marker marker;
+//        marker.header.frame_id = "/vrviz_base";
+//        marker.header.stamp = ros::Time::now();
+//        marker.ns = "cube";
+//        marker.id = 0;
+//        marker.type = visualization_msgs::Marker::CUBE;
+//        marker.action = visualization_msgs::Marker::ADD;
+//        marker.pose.position.x =-0.5;
+//        marker.pose.position.y = 0.7;
+//        marker.pose.position.z =-0.5;
+//        marker.scale.x = 0.3;
+//        marker.scale.y = 0.5;
+//        marker.scale.z = 0.7;
+//        marker.pose.orientation.x = 0.146629;
+//        marker.pose.orientation.y = 0.311454;
+//        marker.pose.orientation.z = 0.733143;
+//        marker.pose.orientation.w = 0.586514;
+//        marker.color.r=0.0;
+//        marker.color.g=1.0;
+//        marker.color.b=0.0;
+//        marker.color.a=1.0;
+//        msg.markers.push_back(marker);
+//    }
+//    {
+//        /// Add some silly shapes
+//        visualization_msgs::Marker marker;
+//        marker.header.frame_id = "/vrviz_base";
+//        marker.header.stamp = ros::Time::now();
+//        marker.ns = "cylinder";
+//        marker.id = 0;
+//        marker.type = visualization_msgs::Marker::CYLINDER;
+//        marker.action = visualization_msgs::Marker::ADD;
+//        marker.pose.position.x = 0.5;
+//        marker.pose.position.y = 0.7;
+//        marker.pose.position.z =-0.5;
+//        marker.scale.x = 0.2;
+//        marker.scale.y = 0.2;
+//        marker.scale.z = 0.5;
+//        marker.pose.orientation.x = 0.443047;
+//        marker.pose.orientation.y = 0.235269;
+//        marker.pose.orientation.z = 0.553809;
+//        marker.pose.orientation.w = 0.664570;
+//        marker.color.r=0.0;
+//        marker.color.g=0.0;
+//        marker.color.b=1.0;
+//        marker.color.a=1.0;
+//        msg.markers.push_back(marker);
+//    }
     /// Send a text marker at the origin of every frame we know about
     for(int idx=0;idx<tf_cache.size();idx++){
         msg.markers.push_back(frame_label(tf_cache[idx]));

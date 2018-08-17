@@ -14,7 +14,6 @@ CMainApplication::CMainApplication( int argc, char *argv[] )
 	, m_unControllerTransformProgramID( 0 )
 	, m_unRenderModelProgramID( 0 )
 	, m_pHMD( NULL )
-	, m_pRenderModels( NULL )
 	, m_bDebugOpenGL( false )
 	, m_bVerbose( false )
 	, m_bPerf( false )
@@ -86,14 +85,14 @@ CMainApplication::~CMainApplication()
 // Purpose: Helper to get a string from a tracked device property and turn it
 //			into a std::string
 //-----------------------------------------------------------------------------
-std::string GetTrackedDeviceString( vr::IVRSystem *pHmd, vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError *peError = NULL )
+std::string GetTrackedDeviceString( vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError *peError = NULL )
 {
-	uint32_t unRequiredBufferLen = pHmd->GetStringTrackedDeviceProperty( unDevice, prop, NULL, 0, peError );
+	uint32_t unRequiredBufferLen = vr::VRSystem()->GetStringTrackedDeviceProperty( unDevice, prop, NULL, 0, peError );
 	if( unRequiredBufferLen == 0 )
 		return "";
 
 	char *pchBuffer = new char[ unRequiredBufferLen ];
-	unRequiredBufferLen = pHmd->GetStringTrackedDeviceProperty( unDevice, prop, pchBuffer, unRequiredBufferLen, peError );
+	unRequiredBufferLen = vr::VRSystem()->GetStringTrackedDeviceProperty( unDevice, prop, pchBuffer, unRequiredBufferLen, peError );
 	std::string sResult = pchBuffer;
 	delete [] pchBuffer;
 	return sResult;
@@ -124,18 +123,6 @@ bool CMainApplication::BInit()
 		return false;
 	}
 
-
-	m_pRenderModels = (vr::IVRRenderModels *)vr::VR_GetGenericInterface( vr::IVRRenderModels_Version, &eError );
-	if( !m_pRenderModels )
-	{
-		m_pHMD = NULL;
-		vr::VR_Shutdown();
-
-		char buf[1024];
-		sprintf_s( buf, sizeof( buf ), "Unable to get render model interface: %s", vr::VR_GetVRInitErrorAsEnglishDescription( eError ) );
-		SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "VR_Init Failed", buf, NULL );
-		return false;
-	}
 
 	int nWindowPosX = 700;
 	int nWindowPosY = 100;
@@ -184,8 +171,8 @@ bool CMainApplication::BInit()
 	m_strDriver = "No Driver";
 	m_strDisplay = "No Display";
 
-	m_strDriver = GetTrackedDeviceString( m_pHMD, vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_TrackingSystemName_String );
-	m_strDisplay = GetTrackedDeviceString( m_pHMD, vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_SerialNumber_String );
+	m_strDriver = GetTrackedDeviceString( vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_TrackingSystemName_String );
+	m_strDisplay = GetTrackedDeviceString( vr::k_unTrackedDeviceIndex_Hmd, vr::Prop_SerialNumber_String );
 
 	std::string strWindowTitle = "hellovr - " + m_strDriver + " " + m_strDisplay;
 	SDL_SetWindowTitle( m_pCompanionWindow, strWindowTitle.c_str() );
@@ -218,6 +205,41 @@ bool CMainApplication::BInit()
 		printf("%s - Failed to initialize VR Compositor!\n", __FUNCTION__);
 		return false;
 	}
+
+    vr::VRInput()->SetActionManifestPath( m_strActionManifestPath.c_str() );
+
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/in/ResetGame", &m_actionResetGame );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up ResetGame, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/in/MoveWorld", &m_actionMoveWorld );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up MoveWorld, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/in/TwistCommand", &m_actionTwistCommand );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up TwistCommand, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/in/TriggerHaptic", &m_actionTriggerHaptic );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up TriggerHaptic, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/in/AnalogInput", &m_actionAnalongInput );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up AnalogInput, err=" << int(err) << std::endl;};}
+
+    {vr::EVRInputError err=vr::VRInput()->GetActionSetHandle( "/actions/vrviz", &m_actionsetVrviz );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up vrviz, err=" << int(err) << std::endl;};}
+
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/out/Haptic_Left", &m_rHand[Left].m_actionHaptic );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up Haptic_Left, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/out/Haptic_Right", &m_rHand[Right].m_actionHaptic );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up Haptic_Right, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetInputSourceHandle( "/user/hand/left", &m_rHand[Left].m_source );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up left, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetInputSourceHandle( "/user/hand/right", &m_rHand[Right].m_source );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up right, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/in/Hand_Left", &m_rHand[Left].m_actionPose );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up Hand_Left, err=" << int(err) << std::endl;};}
+    {vr::EVRInputError err=vr::VRInput()->GetActionHandle( "/actions/vrviz/in/Hand_Right", &m_rHand[Right].m_actionPose );if(err!=vr::EVRInputError::VRInputError_None){std::cout << "Error setting up Hand_Right, err=" << int(err) << std::endl;};}
+
+    /*
+    vr::VRInput()->GetActionHandle( "/actions/vrviz/in/ResetGame", &m_actionResetGame );
+    vr::VRInput()->GetActionHandle( "/actions/vrviz/in/MoveWorld", &m_actionMoveWorld );
+    vr::VRInput()->GetActionHandle( "/actions/vrviz/in/TwistCommand", &m_actionTwistCommand );
+    //vr::VRInput()->GetActionHandle( "/actions/vrviz/in/TriggerHaptic", &m_actionTriggerHaptic );
+    vr::VRInput()->GetActionHandle( "/actions/vrviz/in/AnalogInput", &m_actionAnalongInput );
+
+    vr::VRInput()->GetActionSetHandle( "/actions/vrviz", &m_actionsetVrviz );
+
+    vr::VRInput()->GetActionHandle( "/actions/vrviz/out/Haptic_Left", &m_rHand[Left].m_actionHaptic );
+	vr::VRInput()->GetInputSourceHandle( "/user/hand/left", &m_rHand[Left].m_source );
+    vr::VRInput()->GetActionHandle( "/actions/vrviz/in/Hand_Left", &m_rHand[Left].m_actionPose );
+
+    vr::VRInput()->GetActionHandle( "/actions/vrviz/out/Haptic_Right", &m_rHand[Right].m_actionHaptic );
+	vr::VRInput()->GetInputSourceHandle( "/user/hand/right", &m_rHand[Right].m_source );
+    vr::VRInput()->GetActionHandle( "/actions/vrviz/in/Hand_Right", &m_rHand[Right].m_actionPose );
+    */
 
 	return true;
 }
@@ -257,7 +279,6 @@ bool CMainApplication::BInitGL()
 	SetupCameras();
 	SetupStereoRenderTargets();
 	SetupCompanionWindow();
-	SetupRenderModels();
 
 	return true;
 }
@@ -400,13 +421,78 @@ bool CMainApplication::HandleInput()
 		ProcessVREvent( event );
 	}
 
-	// Process SteamVR controller state
-	for( vr::TrackedDeviceIndex_t unDevice = 0; unDevice < vr::k_unMaxTrackedDeviceCount; unDevice++ )
+	// Process SteamVR action state
+	// UpdateActionState is called each frame to update the state of the actions themselves. The application
+	// controls which action sets are active with the provided array of VRActiveActionSet_t structs.
+	vr::VRActiveActionSet_t actionSet = { 0 };
+    actionSet.ulActionSet = m_actionsetVrviz;
+	vr::VRInput()->UpdateActionState( &actionSet, sizeof(actionSet), 1 );
+
+    //m_bShowCubes = !GetDigitalActionState( m_actionHideCubes );
+
+	vr::VRInputValueHandle_t ulHapticDevice;
+	if ( GetDigitalActionRisingEdge( m_actionTriggerHaptic, &ulHapticDevice ) )
 	{
-		vr::VRControllerState_t state;
-		if( m_pHMD->GetControllerState( unDevice, &state, sizeof(state) ) )
+		if ( ulHapticDevice == m_rHand[Left].m_source )
 		{
-			m_rbShowTrackedDevice[ unDevice ] = state.ulButtonPressed == 0;
+			vr::VRInput()->TriggerHapticVibrationAction( m_rHand[Left].m_actionHaptic, 0, 1, 4.f, 1.0f, vr::k_ulInvalidInputValueHandle );
+		}
+		if ( ulHapticDevice == m_rHand[Right].m_source )
+		{
+			vr::VRInput()->TriggerHapticVibrationAction( m_rHand[Right].m_actionHaptic, 0, 1, 4.f, 1.0f, vr::k_ulInvalidInputValueHandle );
+		}
+	}
+
+	vr::InputAnalogActionData_t analogData;
+	if ( vr::VRInput()->GetAnalogActionData( m_actionAnalongInput, &analogData, sizeof( analogData ), vr::k_ulInvalidInputValueHandle ) == vr::VRInputError_None && analogData.bActive )
+	{
+		m_vAnalogValue[0] = analogData.x;
+		m_vAnalogValue[1] = analogData.y;
+	}
+
+	m_rHand[Left].m_bShowController = true;
+	m_rHand[Right].m_bShowController = true;
+
+//	vr::VRInputValueHandle_t ulHideDevice;
+//	if ( GetDigitalActionState( m_actionHideThisController, &ulHideDevice ) )
+//	{
+//		if ( ulHideDevice == m_rHand[Left].m_source )
+//		{
+//			m_rHand[Left].m_bShowController = false;
+//		}
+//		if ( ulHideDevice == m_rHand[Right].m_source )
+//		{
+//			m_rHand[Right].m_bShowController = false;
+//		}
+//	}
+
+	for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
+	{
+		vr::InputPoseActionData_t poseData;
+
+        vr::EVRInputError err=vr::VRInput()->GetPoseActionData( m_rHand[eHand].m_actionPose, vr::TrackingUniverseStanding, 0, &poseData, sizeof( poseData ), vr::k_ulInvalidInputValueHandle );
+
+        if ( err != vr::VRInputError_None
+			|| !poseData.bActive || !poseData.pose.bPoseIsValid )
+		{
+			m_rHand[eHand].m_bShowController = false;
+            //std::cout << "Error getting pose for controller " << eHand << ", err=" << int(err) << ", Active="<< poseData.bActive << ", PoseValid=" << poseData.pose.bPoseIsValid << std::endl;
+		}
+		else
+		{
+			m_rHand[eHand].m_rmat4Pose = ConvertSteamVRMatrixToMatrix4( poseData.pose.mDeviceToAbsoluteTracking );
+
+			vr::InputOriginInfo_t originInfo;
+			if ( vr::VRInput()->GetOriginTrackedDeviceInfo( poseData.activeOrigin, &originInfo, sizeof( originInfo ) ) == vr::VRInputError_None 
+				&& originInfo.trackedDeviceIndex != vr::k_unTrackedDeviceIndexInvalid )
+			{
+				std::string sRenderModelName = GetTrackedDeviceString( originInfo.trackedDeviceIndex, vr::Prop_RenderModelName_String );
+				if ( sRenderModelName != m_rHand[eHand].m_sRenderModelName )
+				{
+					m_rHand[eHand].m_pRenderModel = FindOrLoadRenderModel( sRenderModelName.c_str() );
+					m_rHand[eHand].m_sRenderModelName = sRenderModelName;
+				}
+			}
 		}
 	}
 
@@ -441,12 +527,6 @@ void CMainApplication::ProcessVREvent( const vr::VREvent_t & event )
 {
 	switch( event.eventType )
 	{
-	case vr::VREvent_TrackedDeviceActivated:
-		{
-			SetupRenderModelForTrackedDevice( event.trackedDeviceIndex );
-			dprintf( "Device %u attached. Setting up render model.\n", event.trackedDeviceIndex );
-		}
-		break;
 	case vr::VREvent_TrackedDeviceDeactivated:
 		{
 			dprintf( "Device %u detached.\n", event.trackedDeviceIndex );
@@ -1256,20 +1336,12 @@ void CMainApplication::RenderControllerAxes()
 	m_uiControllerVertcount = 0;
 	m_iTrackedControllerCount = 0;
 
-	for ( vr::TrackedDeviceIndex_t unTrackedDevice = vr::k_unTrackedDeviceIndex_Hmd + 1; unTrackedDevice < vr::k_unMaxTrackedDeviceCount; ++unTrackedDevice )
+	for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
 	{
-		if ( !m_pHMD->IsTrackedDeviceConnected( unTrackedDevice ) )
+		if ( !m_rHand[eHand].m_bShowController )
 			continue;
 
-		if( m_pHMD->GetTrackedDeviceClass( unTrackedDevice ) != vr::TrackedDeviceClass_Controller )
-			continue;
-
-		m_iTrackedControllerCount += 1;
-
-		if( !m_rTrackedDevicePose[ unTrackedDevice ].bPoseIsValid )
-			continue;
-
-		const Matrix4 & mat = m_rmat4DevicePose[unTrackedDevice];
+		const Matrix4 & mat = m_rHand[eHand].m_rmat4Pose;
 
 		Vector4 center = mat * Vector4( 0, 0, 0, 1 );
 
@@ -1563,23 +1635,16 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 	// ----- Render Model rendering -----
 	glUseProgram( m_unRenderModelProgramID );
 
-	for( uint32_t unTrackedDevice = 0; unTrackedDevice < vr::k_unMaxTrackedDeviceCount; unTrackedDevice++ )
+	for ( EHand eHand = Left; eHand <= Right; ((int&)eHand)++ )
 	{
-		if( !m_rTrackedDeviceToRenderModel[ unTrackedDevice ] || !m_rbShowTrackedDevice[ unTrackedDevice ] )
+		if ( !m_rHand[eHand].m_bShowController || !m_rHand[eHand].m_pRenderModel )
 			continue;
 
-		const vr::TrackedDevicePose_t & pose = m_rTrackedDevicePose[ unTrackedDevice ];
-		if( !pose.bPoseIsValid )
-			continue;
-
-		if( !bIsInputAvailable && m_pHMD->GetTrackedDeviceClass( unTrackedDevice ) == vr::TrackedDeviceClass_Controller )
-			continue;
-
-		const Matrix4 & matDeviceToTracking = m_rmat4DevicePose[ unTrackedDevice ];
+		const Matrix4 & matDeviceToTracking = m_rHand[eHand].m_rmat4Pose;
 		Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * matDeviceToTracking;
 		glUniformMatrix4fv( m_nRenderModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
 
-		m_rTrackedDeviceToRenderModel[ unTrackedDevice ]->Draw();
+		m_rHand[eHand].m_pRenderModel->Draw();
 	}
 
 
@@ -1874,51 +1939,6 @@ CGLRenderModel *CMainApplication::FindOrLoadRenderModel( const char *pchRenderMo
 
 
 //-----------------------------------------------------------------------------
-// Purpose: Create/destroy GL a Render Model for a single tracked device
-//-----------------------------------------------------------------------------
-void CMainApplication::SetupRenderModelForTrackedDevice( vr::TrackedDeviceIndex_t unTrackedDeviceIndex )
-{
-	if( unTrackedDeviceIndex >= vr::k_unMaxTrackedDeviceCount )
-		return;
-
-	// try to find a model we've already set up
-	std::string sRenderModelName = GetTrackedDeviceString( m_pHMD, unTrackedDeviceIndex, vr::Prop_RenderModelName_String );
-	CGLRenderModel *pRenderModel = FindOrLoadRenderModel( sRenderModelName.c_str() );
-	if( !pRenderModel )
-	{
-		std::string sTrackingSystemName = GetTrackedDeviceString( m_pHMD, unTrackedDeviceIndex, vr::Prop_TrackingSystemName_String );
-		dprintf( "Unable to load render model for tracked device %d (%s.%s)", unTrackedDeviceIndex, sTrackingSystemName.c_str(), sRenderModelName.c_str() );
-	}
-	else
-	{
-		m_rTrackedDeviceToRenderModel[ unTrackedDeviceIndex ] = pRenderModel;
-		m_rbShowTrackedDevice[ unTrackedDeviceIndex ] = true;
-	}
-}
-
-
-//-----------------------------------------------------------------------------
-// Purpose: Create/destroy GL Render Models
-//-----------------------------------------------------------------------------
-void CMainApplication::SetupRenderModels()
-{
-	memset( m_rTrackedDeviceToRenderModel, 0, sizeof( m_rTrackedDeviceToRenderModel ) );
-
-	if( !m_pHMD )
-		return;
-
-	for( uint32_t unTrackedDevice = vr::k_unTrackedDeviceIndex_Hmd + 1; unTrackedDevice < vr::k_unMaxTrackedDeviceCount; unTrackedDevice++ )
-	{
-		if( !m_pHMD->IsTrackedDeviceConnected( unTrackedDevice ) )
-			continue;
-
-		SetupRenderModelForTrackedDevice( unTrackedDevice );
-	}
-
-}
-
-
-//-----------------------------------------------------------------------------
 // Purpose: Converts a SteamVR matrix to our local matrix class
 //-----------------------------------------------------------------------------
 Matrix4 CMainApplication::ConvertSteamVRMatrixToMatrix4( const vr::HmdMatrix34_t &matPose )
@@ -1977,7 +1997,7 @@ bool CGLRenderModel::BInit( const vr::RenderModel_t & vrModel, const vr::RenderM
 	// Create and populate the index buffer
 	glGenBuffers( 1, &m_glIndexBuffer );
 	glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, m_glIndexBuffer );
-    glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( uint16_t ) * vrModel.unTriangleCount * 3, vrModel.rIndexData, GL_STATIC_DRAW );
+	glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof( uint16_t ) * vrModel.unTriangleCount * 3, vrModel.rIndexData, GL_STATIC_DRAW );
 
 	glBindVertexArray( 0 );
 
@@ -2035,7 +2055,7 @@ void CGLRenderModel::Draw()
 	glActiveTexture( GL_TEXTURE0 );
 	glBindTexture( GL_TEXTURE_2D, m_glTexture );
 
-    glDrawElements( GL_TRIANGLES, m_unVertexCount, GL_UNSIGNED_SHORT, 0 );
+	glDrawElements( GL_TRIANGLES, m_unVertexCount, GL_UNSIGNED_SHORT, 0 );
 
 	glBindVertexArray( 0 );
 }
