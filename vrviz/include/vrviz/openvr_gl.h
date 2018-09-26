@@ -169,6 +169,7 @@ protected:
 	int m_iValidPoseCount;
 	int m_iValidPoseCount_Last;
 	bool m_bShowCubes;
+	bool m_bShowControllers;
 	Vector2 m_vAnalogValue;
 
 	std::string m_strPoseClasses;                            // what classes we saw poses for this frame

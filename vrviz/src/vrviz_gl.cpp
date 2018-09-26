@@ -12,6 +12,7 @@
 #include <tf/transform_listener.h>
 #include <sensor_msgs/PointCloud.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <std_msgs/Bool.h>
 
 /// Needed for rendering image to overlay
 #include <cv_bridge/cv_bridge.h>
@@ -73,6 +74,7 @@ bool sbs_image=true;///!< If true, render the left half of the image to the left
 bool show_tf=false;
 bool load_robot=false;
 bool show_grid=true;
+bool show_movement=true;
 
 /// This is a flag that tells the VR code that we have new ROS data
 /// \todo This should be a semaphore or mutex
@@ -112,6 +114,7 @@ private:
     Matrix4 current_trans_mat;
     int pressed_id;
     int move_id;
+    bool move_lock;
     Matrix4 move_previous_trans_mat;
     Matrix4 move_current_trans_mat;
     Matrix4 move_trans_mat;
@@ -127,7 +130,8 @@ private:
         m_iCylinderNumFacets(12),
         m_fAngle(1.f),
         pressed_id(-1),
-        move_id(-1)
+        move_id(-1),
+        move_lock(false)
     {
 
         previous_trans.setIdentity();
@@ -237,12 +241,12 @@ private:
                 add_frame_to_scene(tf_cache[ii].transform,vertdataarray,0.1/scaling_factor);
             }
         }
-        if(pressed_id!=-1){
+        if(pressed_id!=-1 && show_movement){
             /// Show the frames we are using to calculate twist commands
             add_frame_to_scene(previous_trans_mat,vertdataarray,0.05/scaling_factor);
             add_frame_to_scene(current_trans_mat ,vertdataarray,0.07/scaling_factor);
         }
-        if(move_id!=-1){
+        if(move_id!=-1 && show_movement){
             /// Show the frames we are using to move the scene
             add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05/scaling_factor);
             add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07/scaling_factor);
@@ -295,6 +299,41 @@ private:
         m_fScale = scale;
         m_fFarClip = 30.f * scale;
         SetupCameras();
+    }
+
+    /*!
+     * \brief set resolution of companion opengl window
+     * \note This size doesn't include whatever OS border is applied
+     * \warning Calls to this function after BInit() is called won't have any effect
+     * \param width width of the rendered part of the window
+     * \param height height of the rendered part of the window
+     */
+    void setCompanionResolution(float width, float height)
+    {
+        m_nCompanionWindowWidth=width;
+        m_nCompanionWindowHeight=height;
+    }
+
+    /*!
+     * \brief set lock of movement of the world
+     *
+     * This can be useful for demos where someone sets up the world
+     * location, then doesn't want users to be able to change it.
+     *
+     * \param lock if true, user cannot move world with wand
+     */
+    void setLock(bool lock)
+    {
+        move_lock = lock;
+    }
+
+    /*!
+     * \brief set whether or not to display controller models
+     * \param display_controllers if true, 3D models of the controllers are shown
+     */
+    void setDisplayControllers(bool display_controllers)
+    {
+        m_bShowControllers = display_controllers;
     }
 
     /*!
@@ -667,7 +706,7 @@ private:
         geometry_msgs::Twist twist_msg;
 
         vr::VRInputValueHandle_t ulTwistCommand;
-        if ( GetDigitalActionState( m_actionTwistCommand, &ulTwistCommand ) )
+        if ( GetDigitalActionState( m_actionTwistCommand, &ulTwistCommand ) && !move_lock )
         {
 
 
@@ -680,7 +719,7 @@ private:
 
                 if(ulTwistCommand == m_rHand[eHand].m_source){
                     if(pressed_id==controller_id){
-                        ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
+                        //ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
                         /// We already knew they pressed this trigger
                         /// So check to see how much has changed since then.
                         /// \note we are implicitly setting Kp=1.0
@@ -701,14 +740,14 @@ private:
                         /// This is the first we have heard about this
                         pressed_id=controller_id;
                         previous_trans=current_trans;
-                        ROS_WARN("Pressed down on controller %d",controller_id);
+                        //ROS_WARN("Pressed down on controller %d",controller_id);
                     }else{
-                        ROS_WARN_THROTTLE(2.0,"Please don't press both triggers simultaneously...");
+                        //ROS_WARN_THROTTLE(2.0,"Please don't press both triggers simultaneously...");
                     }
                 }else{
                     if(pressed_id==controller_id){
                         /// We thought they pressed this trigger, but it appears not anymore
-                        ROS_WARN("Released controller %d",controller_id);
+                        //ROS_WARN("Released controller %d",controller_id);
                         pressed_id=-1;
                         move_trans_mat_old = move_trans_mat;
                     }
@@ -724,7 +763,7 @@ private:
 
 
         vr::VRInputValueHandle_t ulMoveWorld;
-        if ( GetDigitalActionState( m_actionMoveWorld, &ulMoveWorld ) )
+        if ( GetDigitalActionState( m_actionMoveWorld, &ulMoveWorld ) && !move_lock )
         {
 
 
@@ -1050,17 +1089,13 @@ void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
         find_or_add_marker(msg->markers[ii]);
         if(msg->markers[ii].type==visualization_msgs::Marker::TEXT_VIEW_FACING){
 
-            Vector4 pt;
-            /// We scale up from real world units to 'vr units'
-            pt.x=msg->markers[ii].pose.position.x*scaling_factor;
-            pt.y=msg->markers[ii].pose.position.y*scaling_factor;
-            pt.z=msg->markers[ii].pose.position.z*scaling_factor;
-            pt.w=1.f;
-
             Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(msg->markers[ii].header.frame_id);
 
-            Matrix4 matTransform4;
-            matTransform4.translate(pt.x,pt.y,pt.z);
+            tf::StampedTransform trans;
+            trans.setOrigin(tf::Vector3(msg->markers[ii].pose.position.x,msg->markers[ii].pose.position.y,msg->markers[ii].pose.position.z));
+            trans.setRotation(tf::Quaternion(msg->markers[ii].pose.orientation.x,msg->markers[ii].pose.orientation.y,msg->markers[ii].pose.orientation.z,msg->markers[ii].pose.orientation.w));
+            Matrix4 matTransform4 = pVRVizApplication->VrTransform(trans);
+            //matTransform4.translate(pt.x,pt.y,pt.z);
             Matrix4 mat4 = mat * matTransform4;
 
             /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
@@ -1075,6 +1110,15 @@ void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
     scene_update_needed=true;
 }
 
+void lockCallback(const std_msgs::Bool::ConstPtr& lock_in)
+{
+    pVRVizApplication->setLock(lock_in->data);
+}
+
+void showCallback(const std_msgs::Bool::ConstPtr& show_in)
+{
+    pVRVizApplication->setDisplayControllers(show_in->data);
+}
 
 /*!
  * \brief Callback for a point cloud with color
@@ -1374,6 +1418,8 @@ int main(int argc, char *argv[])
     ros::Subscriber sub_markers = nh->subscribe("/markers", 1, markers_Callback);
     ros::Subscriber sub_image = nh->subscribe("/rgb/image_raw", 1, rawImageCallback);
     ros::Subscriber sub_cloud = nh->subscribe("/cloud", 1, pointCloudCallback);
+    ros::Subscriber sub_lock = nh->subscribe("/lock", 1, lockCallback);
+    ros::Subscriber sub_show = nh->subscribe("/show", 1, showCallback);
 
     /// For now we only expect to see two controllers.
     controller_pub[1] = nh->advertise<sensor_msgs::Joy>("/controller_left",1);
@@ -1400,6 +1446,13 @@ int main(int argc, char *argv[])
     nh->getParam("load_robot", load_robot);
     nh->getParam("show_tf", show_tf);
     nh->getParam("show_grid", show_grid);
+    nh->getParam("show_movement", show_movement);
+
+    /// Default to 720p companion window
+    int window_width=1280;
+    int window_height=720;
+    nh->getParam("window_width", window_width);
+    nh->getParam("window_height", window_height);
 
 
     /// The scaling factor allows us to render large or small things in 'VR world'
@@ -1408,6 +1461,7 @@ int main(int argc, char *argv[])
     pVRVizApplication->setPointSize(point_size);
     pVRVizApplication->setTextPath(vrviz_include_path + texture_filename);
     pVRVizApplication->setActionManifestPath(vrviz_include_path + "/vrviz_actions.json");
+    pVRVizApplication->setCompanionResolution(window_width,window_height);
     fallback_texture_filename = vrviz_include_path + fallback_texture_filename;
 
     /// Try initializing the application - this will try to connect to a VR headset

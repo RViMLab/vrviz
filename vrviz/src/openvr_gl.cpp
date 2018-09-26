@@ -36,6 +36,7 @@ CMainApplication::CMainApplication( int argc, char *argv[] )
 	, m_iSceneVolumeInit( 20 )
 	, m_strPoseClasses("")
 	, m_bShowCubes( true )
+	, m_bShowControllers( true )
 {
 
 	for( int i = 1; i < argc; i++ )
@@ -450,8 +451,8 @@ bool CMainApplication::HandleInput()
 		m_vAnalogValue[1] = analogData.y;
 	}
 
-	m_rHand[Left].m_bShowController = true;
-	m_rHand[Right].m_bShowController = true;
+    m_rHand[Left].m_bShowController = m_bShowControllers;
+    m_rHand[Right].m_bShowController = m_bShowControllers;
 
 //	vr::VRInputValueHandle_t ulHideDevice;
 //	if ( GetDigitalActionState( m_actionHideThisController, &ulHideDevice ) )
@@ -1672,7 +1673,7 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
                     glUniform1i(m_colorTextureLocation, 0);
                     glUniform3f(m_dirLightLocation.Color, 1.0,1.0,1.0);
                     glUniform1f(m_dirLightLocation.AmbientIntensity, 0.15);
-                    glUniform3f(m_dirLightLocation.Direction, 0.0, -0.70710678118, -0.70710678118);
+                    glUniform3f(m_dirLightLocation.Direction, 0.0, -0.70710678118, 0.70710678118);
                     glUniform1f(m_dirLightLocation.DiffuseIntensity, 0.5);
                     /// For now, we are just using ambient + one directional light, no points or spots
                     glUniform1i(m_numPointLightsLocation, 0);
@@ -1704,7 +1705,7 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
                     glUniform1i(m_colorTextureRGBLocation, 0);
                     glUniform3f(m_dirLightRGBLocation.Color, 1.0,1.0,1.0);
                     glUniform1f(m_dirLightRGBLocation.AmbientIntensity, 0.15);
-                    glUniform3f(m_dirLightRGBLocation.Direction, 0.0, -0.70710678118, -0.70710678118);
+                    glUniform3f(m_dirLightRGBLocation.Direction, 0.70710678118, 0, 0.70710678118);
                     glUniform1f(m_dirLightRGBLocation.DiffuseIntensity, 0.5);
                     /// For now, we are just using ambient + one directional light, no points or spots
                     glUniform1i(m_numPointLightsRGBLocation, 0);

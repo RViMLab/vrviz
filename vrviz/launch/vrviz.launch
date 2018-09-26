@@ -17,7 +17,7 @@
   <arg name="steam_run_path" default=".steam/ubuntu12_32/steam-runtime/run.sh"/>
 
   <!-- Run the node with the correct prefix WARNING! This has an pathname that will be machine specific!  -->
-  <node name="vrviz" pkg="vrviz" type="vrviz_gl" output="screen" launch-prefix="$(arg user_home_dir)/$(arg steam_run_path)" args=" -novblank " >
+  <node name="vrviz" pkg="vrviz" type="vrviz_gl" output="screen" required="true" launch-prefix="$(arg user_home_dir)/$(arg steam_run_path)" args=" -novblank " >
     <remap from="/markers" to="$(arg marker_remap)" />
     <remap from="/cloud" to="$(arg cloud_remap)" />
     <remap from="/controller_twist" to="$(arg twist_remap)" />
