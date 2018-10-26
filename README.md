@@ -7,6 +7,9 @@ This code was built from the [openvr](https://github.com/ValveSoftware/openvr)
 example code, and adapted to run in catkin and to display ROS messages in 
 virtual space running natively on Ubuntu. There is currently not many message types implemented, and in the future it may be more sensible to turn this into an rviz plugin rather than continue re-implimenting message types here.
 
+If you end up using it, please cite us :) 
+[1] J. O’ Neill, L. Da Cruz, S. Ourselin, T. Vercauteren, and C. Bergeles, “Visualisation node for ROS using OpenVR,” https://github.com/RViMLab/vrviz, 2018.
+
 Prerequisites
 -------------
 
