@@ -1362,36 +1362,112 @@ bool loadRobot(float vr_scale=1.f){
     model.getLinks(links);
     for(int idx=0;idx<links.size();idx++){
         urdf::Link l;
-        if(links[idx]->visual && links[idx]->visual->geometry && links[idx]->visual->geometry->type==urdf::Geometry::MESH){
-            const urdf::Mesh& mesh = static_cast<const urdf::Mesh&>(*(links[idx]->visual->geometry));
+        if(links[idx]->visual && links[idx]->visual->geometry){
 
-            if ( !mesh.filename.empty() ){
+            /// Convert the origin transform to a TF transform as an intermediate
+            /// (This is inefficient, but it only gets run once per link)
+            tf::StampedTransform trans;
+            double x,y,z,w;
+            links[idx]->visual->origin.rotation.getQuaternion(x,y,z,w);
+            trans.setRotation(tf::Quaternion(x,y,z,w));
+            double px=links[idx]->visual->origin.position.x;
+            double py=links[idx]->visual->origin.position.y;
+            double pz=links[idx]->visual->origin.position.z;
+            trans.setOrigin(tf::Vector3(px,py,pz));
 
-                /// Convert the origin transform to a TF transform as an intermediate
-                /// (This is inefficient, but it only gets run once per link)
-                tf::StampedTransform trans;
-                double x,y,z,w;
-                links[idx]->visual->origin.rotation.getQuaternion(x,y,z,w);
-                trans.setRotation(tf::Quaternion(x,y,z,w));
-                double px=links[idx]->visual->origin.position.x;
-                double py=links[idx]->visual->origin.position.y;
-                double pz=links[idx]->visual->origin.position.z;
-                trans.setOrigin(tf::Vector3(px,py,pz));
+            /// Start by assuming a scale of the ROS->VR ratio
+            Vector3 scale;
+            scale.x=vr_scale;
+            scale.y=vr_scale;
+            scale.z=vr_scale;
 
-                /// Start by assuming a scale of the ROS->VR ratio
-                Vector3 scale;
-                scale.x=vr_scale;
-                scale.y=vr_scale;
-                scale.z=vr_scale;
-                /// One option for scaling is from the scale attribute of the mesh xml tag
-                scale.x*=mesh.scale.x;
-                scale.y*=mesh.scale.y;
-                scale.z*=mesh.scale.z;
+            Matrix4 VRtrans=pVRVizApplication->VrTransform(trans);
 
-                Matrix4 VRtrans=pVRVizApplication->VrTransform(trans);
+            std::string name = links[idx]->name;
 
-                loadModel(mesh.filename,links[idx]->name,VRtrans,scale);
+            if(links[idx]->visual->geometry->type==urdf::Geometry::MESH){
+                const urdf::Mesh& mesh = static_cast<const urdf::Mesh&>(*(links[idx]->visual->geometry));
 
+                if ( !mesh.filename.empty() ){
+
+                    /// One option for scaling is from the scale attribute of the mesh xml tag
+                    scale.x*=mesh.scale.x;
+                    scale.y*=mesh.scale.y;
+                    scale.z*=mesh.scale.z;
+
+                    loadModel(mesh.filename,name,VRtrans,scale);
+
+                }
+            }else{
+
+
+                /// Create a new mesh object
+                Mesh* myMesh = new Mesh;
+                myMesh->name=name;
+                myMesh->frame_id=name;
+                myMesh->scale=scale;
+                myMesh->trans=VRtrans;
+                myMesh->fallback_texture_filename=fallback_texture_filename;
+
+                /// Copy the position and orientation into the marker
+                myMesh->marker.pose.position.x=px;
+                myMesh->marker.pose.position.y=py;
+                myMesh->marker.pose.position.z=pz;
+                myMesh->marker.pose.orientation.x=x;
+                myMesh->marker.pose.orientation.y=y;
+                myMesh->marker.pose.orientation.z=z;
+                myMesh->marker.pose.orientation.w=w;
+
+                if(links[idx]->visual->material){
+                    /// Get the material colour
+                    myMesh->marker.color.r=links[idx]->visual->material->color.r;
+                    myMesh->marker.color.g=links[idx]->visual->material->color.g;
+                    myMesh->marker.color.b=links[idx]->visual->material->color.b;
+                }else{
+                    /// Default to red if no material
+                    myMesh->marker.color.r=1.0;
+                    myMesh->marker.color.g=0.0;
+                    myMesh->marker.color.b=0.0;
+                }
+
+                bool success=true;
+
+                /// Copy the attributes into visualization marker format
+                if(links[idx]->visual->geometry->type==urdf::Geometry::SPHERE){
+                    myMesh->marker.type=visualization_msgs::Marker::SPHERE;
+                    const urdf::Sphere& sphere = static_cast<const urdf::Sphere&>(*(links[idx]->visual->geometry));
+                    float radius=sphere.radius;
+                    myMesh->marker.scale.x=radius*2.0;
+                    myMesh->marker.scale.y=radius*2.0;
+                    myMesh->marker.scale.z=radius*2.0;
+                }else if(links[idx]->visual->geometry->type==urdf::Geometry::BOX){
+                    myMesh->marker.type=visualization_msgs::Marker::CUBE;
+                    const urdf::Box& box = static_cast<const urdf::Box&>(*(links[idx]->visual->geometry));
+                    myMesh->marker.scale.x=box.dim.x;
+                    myMesh->marker.scale.y=box.dim.y;
+                    myMesh->marker.scale.z=box.dim.z;
+
+                    myMesh->marker.type=visualization_msgs::Marker::CUBE;
+                }else if(links[idx]->visual->geometry->type==urdf::Geometry::CYLINDER){
+                    myMesh->marker.type=visualization_msgs::Marker::CYLINDER;
+                    const urdf::Cylinder& cylinder = static_cast<const urdf::Cylinder&>(*(links[idx]->visual->geometry));
+                    float radius=cylinder.radius;
+                    float length=cylinder.length;
+                    myMesh->marker.scale.x=radius*2.0;
+                    myMesh->marker.scale.y=radius*2.0;
+                    myMesh->marker.scale.z=length;
+
+                }else{
+                    ROS_ERROR("Unknown Geometry type! %d isn't a mesh, sphere, box or cylinder",int(links[idx]->visual->geometry->type));
+                    success=false;
+                }
+                if(success){
+                    /// Add the mesh to the vector
+                    myMesh->InitMarker(scaling_factor);
+                    myMesh->initialized=true;
+                    myMesh->needs_update=false;
+                    pVRVizApplication->robot_meshes.push_back(myMesh);
+                }
             }
         }
     }
