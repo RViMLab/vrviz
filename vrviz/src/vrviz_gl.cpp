@@ -75,6 +75,7 @@ bool show_tf=false;
 bool load_robot=false;
 bool show_grid=true;
 bool show_movement=true;
+float intensity_max=0.0;
 
 /// This is a flag that tells the VR code that we have new ROS data
 /// \todo This should be a semaphore or mutex
@@ -297,7 +298,7 @@ private:
     void setScale(float scale)
     {
         m_fScale = scale;
-        m_fFarClip = 30.f * scale;
+        m_fFarClip = 40.f;
         SetupCameras();
     }
 
@@ -1129,34 +1130,116 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
 {
     ROS_INFO_ONCE("Received Point Cloud 2 Message");
 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_with_nan(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::fromROSMsg(*cloud_in, *cloud_with_nan);
-    std::vector<int> indices;
-    /// Avoid NAN points, since they would not render well
-    pcl::removeNaNFromPointCloud(*cloud_with_nan,*cloud, indices);
+    bool rgb = false;
+    bool intensity = false;
+    for(int ii=0;ii<cloud_in->fields.size();ii++)
+    {
+        if(cloud_in->fields[ii].name=="rgb"){
+            rgb = true;
+        }
+        if(cloud_in->fields[ii].name=="intensity"){
+            intensity = true;
+        }
+    }
 
     Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(cloud_in->header.frame_id);
 
     std::vector<float> vertdataarray;
 
-    for(size_t i = 0; i<cloud->points.size(); i++)
+    if(rgb) /// We prefer color channel info, if it has it
     {
-        Vector4 pt;
-        /// We scale up from real world units to 'vr units'
-        pt.x=cloud->points[i].x*scaling_factor;
-        pt.y=cloud->points[i].y*scaling_factor;
-        pt.z=cloud->points[i].z*scaling_factor;
-        pt.w=1.0;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_with_nan(new pcl::PointCloud<pcl::PointXYZRGB>);
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+        pcl::fromROSMsg(*cloud_in, *cloud_with_nan);
+        std::vector<int> indices;
+        /// Avoid NAN points, since they would not render well
+        pcl::removeNaNFromPointCloud(*cloud_with_nan,*cloud, indices);
 
-        Vector3 color;
-        color.x = cloud->points[i].r/255.0;
-        color.y = cloud->points[i].g/255.0;
-        color.z = cloud->points[i].b/255.0;
+        for(size_t i = 0; i<cloud->points.size(); i++)
+        {
+            Vector4 pt;
+            /// We scale up from real world units to 'vr units'
+            pt.x=cloud->points[i].x*scaling_factor;
+            pt.y=cloud->points[i].y*scaling_factor;
+            pt.z=cloud->points[i].z*scaling_factor;
+            pt.w=1.0;
 
-        pVRVizApplication->add_point_to_scene(mat,vertdataarray,pt,color);
+            Vector3 color;
+            color.x = cloud->points[i].r/255.0;
+            color.y = cloud->points[i].g/255.0;
+            color.z = cloud->points[i].b/255.0;
 
-        //ROS_INFO("Processed Point %f,%f,%f",pt.x,pt.y,pt.z);
+            pVRVizApplication->add_point_to_scene(mat,vertdataarray,pt,color);
+
+            //ROS_INFO("Processed Point %f,%f,%f",pt.x,pt.y,pt.z);
+        }
+    }
+    else if(intensity) /// Intensity can be mapped to color
+    {
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_with_nan(new pcl::PointCloud<pcl::PointXYZI>);
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
+        pcl::fromROSMsg(*cloud_in, *cloud_with_nan);
+        std::vector<int> indices;
+        /// Avoid NAN points, since they would not render well
+        pcl::removeNaNFromPointCloud(*cloud_with_nan,*cloud, indices);
+
+        for(size_t i = 0; i<cloud->points.size(); i++)
+        {
+            Vector4 pt;
+            /// We scale up from real world units to 'vr units'
+            pt.x=cloud->points[i].x*scaling_factor;
+            pt.y=cloud->points[i].y*scaling_factor;
+            pt.z=cloud->points[i].z*scaling_factor;
+            pt.w=1.0;
+
+            /// Convert intensity into a color spectrum
+            /// We are going from 0.0=blue to max=white
+            /// This was chosen since black->white doesn't render well on the black background,
+            /// and the rainbow color scheme has repeatedly been proven awful in every way.
+            /// We also keep track of the max intensity seen, same as the default for rviz.
+            float intensity_val = cloud->points[i].intensity;
+            if(intensity_val > intensity_max){
+                intensity_max = intensity_val;
+            }
+            Vector3 color;
+            color.x = 1.0-intensity_val/intensity_max;
+            color.y = 1.0-intensity_val/intensity_max;
+            color.z = 1.0;
+
+            pVRVizApplication->add_point_to_scene(mat,vertdataarray,pt,color);
+
+            //ROS_INFO("Processed Point %f,%f,%f",pt.x,pt.y,pt.z);
+        }
+    }
+    else /// If we have no useful info, we pick a solid color.
+    {
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_with_nan(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::fromROSMsg(*cloud_in, *cloud_with_nan);
+        std::vector<int> indices;
+        /// Avoid NAN points, since they would not render well
+        pcl::removeNaNFromPointCloud(*cloud_with_nan,*cloud, indices);
+
+        for(size_t i = 0; i<cloud->points.size(); i++)
+        {
+            Vector4 pt;
+            /// We scale up from real world units to 'vr units'
+            pt.x=cloud->points[i].x*scaling_factor;
+            pt.y=cloud->points[i].y*scaling_factor;
+            pt.z=cloud->points[i].z*scaling_factor;
+            pt.w=1.0;
+
+            /// The color is just solid red. This could be a param.
+            Vector3 color;
+            color.x = 1.0;
+            color.y = 0.0;
+            color.z = 0.0;
+
+            pVRVizApplication->add_point_to_scene(mat,vertdataarray,pt,color);
+
+            //ROS_INFO("Processed Point %f,%f,%f",pt.x,pt.y,pt.z);
+        }
+
     }
 
     /// Copy the data over to the shared data
