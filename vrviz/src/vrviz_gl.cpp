@@ -1606,6 +1606,17 @@ int main(int argc, char *argv[])
     nh->getParam("show_tf", show_tf);
     nh->getParam("show_grid", show_grid);
     nh->getParam("show_movement", show_movement);
+    nh->getParam("sbs_image", sbs_image);
+
+    /// These params are probably not going to be changed, but are here just in case
+    nh->getParam("vrviz_include_path", vrviz_include_path);
+    nh->getParam("texture_filename", texture_filename);
+    nh->getParam("fallback_texture_filename", fallback_texture_filename);
+    nh->getParam("texture_character_map", texture_character_map);
+    nh->getParam("base_frame", base_frame);
+    nh->getParam("intermediate_frame", intermediate_frame);
+    nh->getParam("frame_prefix", frame_prefix);
+    nh->getParam("intensity_max", intensity_max);
 
     /// Default to 720p companion window
     int window_width=1280;
