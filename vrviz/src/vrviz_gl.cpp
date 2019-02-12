@@ -84,11 +84,12 @@ volatile bool scene_update_needed=true;
 #ifdef USE_VULKAN
 #else
 /// Variables for rendering image to overlay
-GLuint textureFromImage;
+GLuint textureFromImage = 0;
 #endif
 cv_bridge::CvImagePtr cv_ptr_raw;
 bool received_image=false;
-cv::Mat image_received;
+boost::mutex image_mutex;
+cv::Mat image_flipped;
 
 
 /// Arrays of objects to be rendered. These have been converted into VR space, and are in a format easily rendered by the VR code.
@@ -372,12 +373,19 @@ private:
             return;
 
 
-        if(received_image){
+        if(received_image && image_mutex.try_lock()){
 #ifdef USE_VULKAN
             /// \todo Bind texture
 #else
-            // Bind texture
+            /// Bind texture
+            BindCVMat2GLTexture(textureFromImage);
+            /// Avoid recopying the same data
+            received_image = false;
+            /// Allow the subscriber to change the data
+            image_mutex.unlock();
+            /// Convert to a 'vr' texture
             vr::Texture_t texture = {(void*)(uintptr_t)textureFromImage, vr::TextureType_OpenGL, vr::ColorSpace_Auto };
+            /// Set this texture to appear on the overlay and enable it. \note this may not need to be done every time?
             vr::VROverlay()->SetOverlayTexture( m_ulOverlayHandle, &texture );
             vr::VROverlay()->ShowOverlay(m_ulOverlayHandle);
 #endif
@@ -971,6 +979,57 @@ private:
         return trans.transform;
     }
 
+#ifndef USE_VULKAN
+    /*!
+     * \brief Convert an OpenCV image mat to OpenGL
+     *
+     * \note This was adapted from https://stackoverflow.com/a/16815662 and may not be optimal
+     *
+     * \param image
+     * \param imageTexture
+     */
+    void BindCVMat2GLTexture(GLuint& imageTexture)
+    {
+       if(image_flipped.empty()){
+          std::cout << "image empty" << std::endl;
+      }else{
+          //glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+          glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+          if(imageTexture==0){
+              /// This allocates memory for the texture, so we do it the first time
+              /// If the image you are subscribing to changes resolution THINGS WILL BREAK
+              glGenTextures(1, &imageTexture);
+          }
+          glBindTexture(GL_TEXTURE_2D, imageTexture);
+
+          glTexImage2D( GL_TEXTURE_2D,          // Type of texture
+                        0,                      // Pyramid level (for mip-mapping) - 0 is the top level
+                        GL_RGBA,                // Internal colour format to convert to
+                        image_flipped.cols,     // Image width  i.e. 640 for Kinect in standard mode
+                        image_flipped.rows,     // Image height i.e. 480 for Kinect in standard mode
+                        0,                      // Border width in pixels (can either be 1 or 0)
+                        GL_RGB,                 // Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
+                        GL_UNSIGNED_BYTE,       // Image data type
+                        image_flipped.ptr());   // The actual image data itself
+
+
+          // If this renders black ask McJohn what's wrong.
+          glGenerateMipmap(GL_TEXTURE_2D);
+
+          glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+          glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+          glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+          glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+
+          GLfloat fLargest;
+          glGetFloatv( GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest );
+          glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, fLargest );
+
+          glBindTexture( GL_TEXTURE_2D, 0 );
+        }
+    }
+#endif
+
 };
 
 
@@ -1248,65 +1307,6 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
     scene_update_needed=true;
 }
 
-#ifdef USE_VULKAN
-
-/// \todo Convert texture
-
-#else
-/*!
- * \brief Convert an OpenCV image mat to OpenGL
- *
- * \note This was adapted from https://stackoverflow.com/a/16815662 and may not be optimal
- *
- * \param image
- * \param imageTexture
- */
-void BindCVMat2GLTexture(cv::Mat& image, GLuint& imageTexture)
-{
-   if(image.empty()){
-      std::cout << "image empty" << std::endl;
-  }else{
-      //glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-      glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-      if(!received_image){
-          /// This allocates memory for the texture, so we do it the first time
-          /// If the image you are subscribing to changes resolution THINGS WILL BREAK
-          glGenTextures(1, &imageTexture);
-      }
-      glBindTexture(GL_TEXTURE_2D, imageTexture);
-
-      cv::cvtColor(image, image, CV_BGR2RGB);
-      cv::Mat image_flipped;
-      cv::flip(image, image_flipped, 0);
-
-      glTexImage2D(GL_TEXTURE_2D,         // Type of texture
-                        0,                   // Pyramid level (for mip-mapping) - 0 is the top level
-            GL_RGBA,              // Internal colour format to convert to
-                        image_flipped.cols,          // Image width  i.e. 640 for Kinect in standard mode
-                        image_flipped.rows,          // Image height i.e. 480 for Kinect in standard mode
-                        0,                   // Border width in pixels (can either be 1 or 0)
-            GL_RGB,              // Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
-            GL_UNSIGNED_BYTE,    // Image data type
-            image_flipped.ptr());        // The actual image data itself
-
-
-      // If this renders black ask McJohn what's wrong.
-      glGenerateMipmap(GL_TEXTURE_2D);
-
-      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
-
-      GLfloat fLargest;
-      glGetFloatv( GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest );
-      glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, fLargest );
-
-      glBindTexture( GL_TEXTURE_2D, 0 );
-    }
-}
-#endif
-
 /*!
  * \brief rawImageCallback
  *
@@ -1316,24 +1316,35 @@ void BindCVMat2GLTexture(cv::Mat& image, GLuint& imageTexture)
  * \param raw_image_msg
  */
 void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
-
     try
     {
+        /// Convert to OpenCV
         cv_ptr_raw = cv_bridge::toCvCopy(raw_image_msg,sensor_msgs::image_encodings::BGR8);
+
+        /// Convert to RGB
+        cv::cvtColor(cv_ptr_raw->image, cv_ptr_raw->image, CV_BGR2RGB);
+
+        /// Don't bother copying the image if the VR thread hasn't even processed the last one.
+        if(!received_image && image_mutex.try_lock()){
+
+            /// Flip it because OpenCV and OpenGL have a different top/bottom standard
+            cv::flip(cv_ptr_raw->image, image_flipped, 0);
+
+            /// tell the VR thread we have data
+            received_image=true;
+
+            /// Release the mutex to allow the VR thread to use the image
+            image_mutex.unlock();
+        }
+
     }
     catch (cv_bridge::Exception& error)
     {
         ROS_ERROR("cv_bridge exception: %s", error.what());
-        return;
+        received_image=false;
     }
 
-#ifdef USE_VULKAN
-    /// \todo Convert to texture
-    return;
-#else
-    BindCVMat2GLTexture(cv_ptr_raw->image,textureFromImage);
-#endif
-    received_image=true;
+    /// We have new data, so trigger a scene update
     scene_update_needed=true;
 }
 

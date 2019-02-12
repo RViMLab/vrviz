@@ -49,6 +49,11 @@ For a demo showing a bagfile download the `demo_mapping.bag` file from [here](ht
 roslaunch vrviz point_cloud_demo.launch bagfile:=/path/to/demo_mapping.bag
 ```
 
+For a demo showing a stereoscopic video, download the `bbb_clip_sbs.mp4` file from [here](https://www.dropbox.com/s/pjnyp77bv93qjiw/bbb_clip_sbs.mp4?dl=0) and install `ros-kinetic-video-stream-opencv` run:
+```
+roslaunch vrviz video_demo.launch video_file:=/path/to/bbb_clip_sbs.mp4
+```
+
 Features
 --------
  - The default RViz 1m grid

@@ -1,0 +1,34 @@
+<launch>
+   <arg name="user_home_dir" default="$(env HOME)"/>
+   <arg name="video_file" default="$(arg user_home_dir)/Downloads/bbb_clip_sbs.mp4" />
+   <!-- launch video stream -->
+   <include file="$(find video_stream_opencv)/launch/camera.launch" >
+        <!-- node name and ros graph name -->
+        <arg name="camera_name" value="rgb" />
+        <!-- means video device 0, /dev/video0 -->
+        <arg name="video_stream_provider" value="$(arg video_file)" />
+        <!-- set camera fps to (if the device allows) -->
+        <arg name="set_camera_fps" value="30"/>
+        <!-- set buffer queue size of frame capturing to -->
+        <arg name="buffer_queue_size" value="100" />
+        <!-- throttling the querying of frames to -->
+        <arg name="fps" value="30" />
+        <!-- setting frame_id -->
+        <arg name="frame_id" value="rgb" />
+        <!-- camera info loading, take care as it needs the "file:///" at the start , e.g.:
+        "file:///$(find your_camera_package)/config/your_camera.yaml" -->
+        <arg name="camera_info_url" value="" />
+        <!-- flip the image horizontally (mirror it) -->
+        <arg name="flip_horizontal" value="false" />
+        <!-- flip the image vertically -->
+        <arg name="flip_vertical" value="false" />
+        <!-- visualize on an image_view window the stream generated -->
+        <arg name="visualize" value="true" />
+   </include>
+   <include file="$(find vrviz)/launch/vrviz.launch">
+      <arg name="hud_dist" value="3.0"/>
+      <arg name="hud_size" value="2.0"/>
+      <arg name="sbs_image" value="true"/>
+      <arg name="show_grid" value="false"/>
+   </include>
+</launch>
