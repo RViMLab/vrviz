@@ -12,6 +12,7 @@
   <arg name="show_tf" default="false"/>
   <arg name="show_grid" default="true"/>
   <arg name="sbs_image" default="false"/>
+  <arg name="manual_image_copy" default="false"/>
 
   <!-- This is where the steam-runtime exists for my install, but this may depend on steam version -->
   <arg name="user_home_dir" default="$(env HOME)"/>
@@ -30,6 +31,7 @@
     <param name="show_tf" value="$(arg show_tf)"/>
     <param name="show_grid" value="$(arg show_grid)"/>
     <param name="sbs_image" value="$(arg sbs_image)"/>
+    <param name="manual_image_copy" value="$(arg manual_image_copy)"/>
   </node>
 
 

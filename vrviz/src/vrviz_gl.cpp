@@ -76,6 +76,7 @@ bool load_robot=false;
 bool show_grid=true;
 bool show_movement=true;
 float intensity_max=0.0;
+bool manual_image_copy = false;
 
 /// This is a flag that tells the VR code that we have new ROS data
 /// \todo This should be a semaphore or mutex
@@ -86,10 +87,11 @@ volatile bool scene_update_needed=true;
 /// Variables for rendering image to overlay
 GLuint textureFromImage = 0;
 #endif
-cv_bridge::CvImagePtr cv_ptr_raw;
 bool received_image=false;
+bool received_first_image=false;
 boost::mutex image_mutex;
 cv::Mat image_flipped;
+cv_bridge::CvImagePtr cv_ptr_raw;
 
 
 /// Arrays of objects to be rendered. These have been converted into VR space, and are in a format easily rendered by the VR code.
@@ -373,14 +375,16 @@ private:
             return;
 
 
-        if(received_image && image_mutex.try_lock()){
+        if(received_image && (manual_image_copy || image_mutex.try_lock())){
 #ifdef USE_VULKAN
             /// \todo Bind texture
 #else
             /// Bind texture
             BindCVMat2GLTexture(textureFromImage);
             /// Avoid recopying the same data
-            received_image = false;
+            if(!manual_image_copy){
+                received_image = false;
+            }
             /// Allow the subscriber to change the data
             image_mutex.unlock();
             /// Convert to a 'vr' texture
@@ -999,19 +1003,28 @@ private:
               /// This allocates memory for the texture, so we do it the first time
               /// If the image you are subscribing to changes resolution THINGS WILL BREAK
               glGenTextures(1, &imageTexture);
+              glBindTexture(GL_TEXTURE_2D, imageTexture);
+              glTexImage2D( GL_TEXTURE_2D,          // Type of texture
+                            0,                      // Pyramid level (for mip-mapping) - 0 is the top level
+                            GL_RGBA,                // Internal colour format to convert to
+                            image_flipped.cols,     // Image width  i.e. 640 for Kinect in standard mode
+                            image_flipped.rows,     // Image height i.e. 480 for Kinect in standard mode
+                            0,                      // Border width in pixels (can either be 1 or 0)
+                            GL_RGBA,                // Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
+                            GL_UNSIGNED_BYTE,       // Image data type
+                            image_flipped.ptr());   // The actual image data itself
           }
+
           glBindTexture(GL_TEXTURE_2D, imageTexture);
 
-          glTexImage2D( GL_TEXTURE_2D,          // Type of texture
+          glTexSubImage2D(GL_TEXTURE_2D,        // Type of texture
                         0,                      // Pyramid level (for mip-mapping) - 0 is the top level
-                        GL_RGBA,                // Internal colour format to convert to
+                        0,0,                    // Internal colour format to convert to
                         image_flipped.cols,     // Image width  i.e. 640 for Kinect in standard mode
                         image_flipped.rows,     // Image height i.e. 480 for Kinect in standard mode
-                        0,                      // Border width in pixels (can either be 1 or 0)
-                        GL_RGB,                 // Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
+                        GL_RGBA,                // Input image format (i.e. GL_RGB, GL_RGBA, GL_BGR etc.)
                         GL_UNSIGNED_BYTE,       // Image data type
                         image_flipped.ptr());   // The actual image data itself
-
 
           // If this renders black ask McJohn what's wrong.
           glGenerateMipmap(GL_TEXTURE_2D);
@@ -1307,6 +1320,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
     scene_update_needed=true;
 }
 
+
 /*!
  * \brief rawImageCallback
  *
@@ -1316,32 +1330,96 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
  * \param raw_image_msg
  */
 void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
-    try
+    if(manual_image_copy)
     {
-        /// Convert to OpenCV
-        cv_ptr_raw = cv_bridge::toCvCopy(raw_image_msg,sensor_msgs::image_encodings::BGR8);
-
-        /// Convert to RGB
-        cv::cvtColor(cv_ptr_raw->image, cv_ptr_raw->image, CV_BGR2RGB);
-
-        /// Don't bother copying the image if the VR thread hasn't even processed the last one.
-        if(!received_image && image_mutex.try_lock()){
-
-            /// Flip it because OpenCV and OpenGL have a different top/bottom standard
-            cv::flip(cv_ptr_raw->image, image_flipped, 0);
-
-            /// tell the VR thread we have data
-            received_image=true;
-
-            /// Release the mutex to allow the VR thread to use the image
-            image_mutex.unlock();
+        int x,y,idx,id2;
+        if(!received_first_image)
+        {
+            /// Preallocate with 4 bytes/pixel for RGBA
+            image_flipped = cv::Mat(raw_image_msg->height, raw_image_msg->width, CV_8UC4);
+            for(y=0;y<raw_image_msg->height;y++)
+            {
+                for(x=0;x<raw_image_msg->width;x++)
+                {
+                    /// Set the alpha to non-transparent
+                    /// \todo Could make this a param, to allow people to overlay translucent images
+                    idx=(raw_image_msg->height-1-y)*raw_image_msg->step+x*3;
+                    image_flipped.at<cv::Vec4b>(y,x)[3] = 255;
+                }
+            }
+            //ROS_INFO("Set up image. Cols=%d,Rows=%d",image_flipped.cols,image_flipped.rows);
+            received_first_image = true;
         }
+        if(raw_image_msg->encoding==sensor_msgs::image_encodings::BGR8)
+        {
+            /// Right now we only go from BGR -> RGBA
+            /// \todo RGB -> RGBA would be pretty easy to impliment, if anyone want it.
+            for(y=0;y<raw_image_msg->height;y++)
+            {
+                /// I tried a few different ways of looping through the data, and this is the fastest one I found.
+                uchar* pixel = image_flipped.ptr<uchar>(y);  // point to first color in row
+                pixel+=2;
+                const uchar* pixel2 = &(raw_image_msg->data[(raw_image_msg->height-1-y)*raw_image_msg->step]);  // point to first color in row
+                for(x=0;x<raw_image_msg->width;x++)
+                {
+                    /// Takes ~30ms for 2x1080p
+                    *pixel--=*pixel2++;
+                    *pixel--=*pixel2++;
+                    *pixel=*pixel2++;
+                    pixel+=6;
+                    /// Takes ~60ms for 2x1080p
+//                    idx=(raw_image_msg->height-1-y)*raw_image_msg->step+x*3;
+//                    id2=4*(raw_image_msg->width*y + x);
+//                    image_flipped.data[id2+0]=raw_image_msg->data[idx+2];
+//                    image_flipped.data[id2+1]=raw_image_msg->data[idx+1];
+//                    image_flipped.data[id2+2]=raw_image_msg->data[idx+0];
+                    /// Slowest, takes ~100ms for 2x1080p
+//                    idx=(raw_image_msg->height-1-y)*raw_image_msg->step+x*3;
+//                    image_flipped.at<cv::Vec4b>(y,x)[0] = raw_image_msg->data[idx+2];
+//                    image_flipped.at<cv::Vec4b>(y,x)[1] = raw_image_msg->data[idx+1];
+//                    image_flipped.at<cv::Vec4b>(y,x)[2] = raw_image_msg->data[idx+0];
+//                    image_flipped.at<cv::Vec4b>(y,x)[3] = 255;
+                }
+            }
+        }else{
+            ROS_WARN("Manual image copy only works on BRG8 images, sorry!");
+            /// \todo Could fall back to the opencv copy
+        }
+        /// tell the VR thread we have data
+        received_image=true;
 
-    }
-    catch (cv_bridge::Exception& error)
-    {
-        ROS_ERROR("cv_bridge exception: %s", error.what());
-        received_image=false;
+    }else{
+        try
+        {
+            /// Convert to OpenCV
+            cv_ptr_raw = cv_bridge::toCvCopy(raw_image_msg,sensor_msgs::image_encodings::BGR8);
+
+            /// Convert to RGB
+            /// \note this is actually pretty slow. For a stereo 1080p image it could be ~30ms
+            cv::cvtColor(cv_ptr_raw->image, cv_ptr_raw->image, CV_BGR2RGBA);
+
+            /// Don't bother copying the image if the VR thread hasn't even processed the last one.
+            if(!received_image && image_mutex.try_lock()){
+
+                /// Flip it because OpenCV and OpenGL have a different top/bottom standard
+                /// \note this is actually pretty slow. For a stereo 1080p image it could be ~15ms
+                /// \todo this should not be necessary. In opengl you can just flip the quad, not the texture. But with the overlay we don't have control of the quad?
+                cv::flip(cv_ptr_raw->image, image_flipped, 0);
+
+                /// tell the VR thread we have data
+                received_image=true;
+
+                /// Release the mutex to allow the VR thread to use the image
+                image_mutex.unlock();
+
+            }
+
+        }
+        catch (cv_bridge::Exception& error)
+        {
+            ROS_ERROR("cv_bridge exception: %s", error.what());
+            received_image=false;
+        }
     }
 
     /// We have new data, so trigger a scene update
@@ -1628,6 +1706,7 @@ int main(int argc, char *argv[])
     nh->getParam("intermediate_frame", intermediate_frame);
     nh->getParam("frame_prefix", frame_prefix);
     nh->getParam("intensity_max", intensity_max);
+    nh->getParam("manual_image_copy", manual_image_copy);
 
     /// Default to 720p companion window
     int window_width=1280;
