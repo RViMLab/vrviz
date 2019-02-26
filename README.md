@@ -9,7 +9,12 @@ virtual space running natively on Ubuntu. There is currently not many message ty
 
 If you end up using it, please cite us :) 
 
-[1] J. O’ Neill, L. Da Cruz, S. Ourselin, T. Vercauteren, and C. Bergeles, “Visualisation node for ROS using OpenVR,” https://github.com/RViMLab/vrviz, 2018.
+@inproceedings{ONeill2019,
+author = {O'Neill, J. and Ourselin, S. and Vercauteren, T. and {Da Cruz*}, L. and Bergeles*, C.},
+booktitle = {Joint Workshop on New Technologies for Computer/Robot Assisted Surgery},
+title = {{VRViz: Native VR Visualization of ROS Topics}},
+year = {2019}
+}
 
 Prerequisites
 -------------
