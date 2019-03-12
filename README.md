@@ -5,16 +5,18 @@ Visualization node for ROS using OpenVR
 
 This code was built from the [openvr](https://github.com/ValveSoftware/openvr) 
 example code, and adapted to run in catkin and to display ROS messages in 
-virtual space running natively on Ubuntu. There is currently not many message types implemented, and in the future it may be more sensible to turn this into an rviz plugin rather than continue re-implimenting message types here.
+virtual space running natively on Ubuntu. There are currently not many message types implemented, and in the future it may be more sensible to turn this into an rviz plugin rather than continue re-implimenting message types here.
 
 If you end up using it, please cite us :) 
 
+```
 @inproceedings{ONeill2019,
 author = {O'Neill, J. and Ourselin, S. and Vercauteren, T. and {Da Cruz*}, L. and Bergeles*, C.},
 booktitle = {Joint Workshop on New Technologies for Computer/Robot Assisted Surgery},
 title = {{VRViz: Native VR Visualization of ROS Topics}},
 year = {2019}
 }
+```
 
 Prerequisites
 -------------
@@ -35,7 +37,7 @@ sudo apt-get install libglew-dev libassimp-dev
 Running with Steam Runtime
 --------------------------
 
-For now, this node requires being run as part of the steam runtime (or as shown in vrviz.launch):
+For now, this node requires being run as part of the steam runtime (This can be automated, as shown in vrviz.launch):
 ```
 rosrun --prefix '~/.steam/ubuntu12_32/steam-runtime/run.sh' vrviz vrviz_gl
 ```
@@ -54,7 +56,7 @@ For a demo showing a bagfile download the `demo_mapping.bag` file from [here](ht
 roslaunch vrviz point_cloud_demo.launch bagfile:=/path/to/demo_mapping.bag
 ```
 
-For a demo showing a stereoscopic video, download the `bbb_clip_sbs.mp4` file from [here](https://www.dropbox.com/s/pjnyp77bv93qjiw/bbb_clip_sbs.mp4?dl=0) and install `ros-kinetic-video-stream-opencv` run:
+For a demo showing a stereoscopic video, download the `bbb_clip_sbs.mp4` file from [here](https://www.dropbox.com/s/pjnyp77bv93qjiw/bbb_clip_sbs.mp4?dl=1) and install `ros-kinetic-video-stream-opencv` and then run:
 ```
 roslaunch vrviz video_demo.launch video_file:=/path/to/bbb_clip_sbs.mp4
 ```
@@ -66,15 +68,18 @@ Features
  - Loading a robot model from the parameter server with `load_robot:=true`
  - Visualizing TF's (currently only TF's that have been referenced somewhere)
  - Visualizing PointCloud2 messages (currently expecting color)
- - Visualizing stereo pair image (currently expects one side-by-side image)
+ - Visualizing stereo pair image (currently expects one side-by-side image, or duplicates the same image to each eye)
  - Visualizing visualization messages (currently expecting cube, sphere, cylinder or text)
 
 Limitations
 -----------
  - The code is very much a work in progress, and many features are partially or inefficiently implemented.
  - The [SteamVR support for Ubuntu](https://github.com/ValveSoftware/SteamVR-for-Linux) is still in Beta, so be careful.
+ - Currently only supports one of each message type. This can be worked around by, for example, concatenating a bunch of point clouds in another node and then sending the big cloud into VRViz.
+ - Images are just overlayed directly on the user's eyes, blocking view of the scene. Images could/should be placed in a location based on the camera info, but this is not implemented yet.
+ - Please feel free to open a feature request or add a pull request, there are lots of little improvements that we have not gotten around to but if there's a desire for them we would be happy to try.
 
 Vulkan
 ------
-As much as possible, the code has been created to keep the opengl specific things separate in order to allow building either with vulkan or opengl (based on the fact that the `open_vr` examples of opengl and vulkan, which this was built from, are very similar). However, while the vulkan executable (`vrviz_vk`) builds and links, it does NOT have any real functionality to speak of, and would require some work to bring up to the level of `vrviz_gl`. It is currently commented out of the CMakeLists and does not build.
+As much as possible, the code has been created to keep the opengl specific things separate in order to allow building either with vulkan or opengl (based on the fact that the `open_vr` examples of opengl and vulkan, which this was built from, are very similar). However, while the vulkan executable (`vrviz_vk`) builds and links, it does NOT have any real functionality to speak of, and would require some work to bring up to the level of `vrviz_gl`. It is currently commented out of the CMakeLists and does not get built.
 
