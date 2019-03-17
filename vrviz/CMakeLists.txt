@@ -27,6 +27,7 @@ find_package(catkin REQUIRED COMPONENTS
   visualization_msgs
   cv_bridge
   image_transport
+  image_geometry
   pcl_conversions
   pcl_ros
   urdf

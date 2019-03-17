@@ -4,11 +4,13 @@
     <include file="$(find vrviz)/launch/vrviz.launch">
         <arg name="cloud_remap" value="/camera/depth/points"/>
         <arg name="marker_remap" value="/marker_array"/>
+        <arg name="image_remap" value="/camera/rgb/image_raw"/>
         <arg name="scaling_factor" value="1.0"/>
         <arg name="point_size" value="1"/>
         <arg name="twist_remap" value="/cmd_vel_mux/input/teleop"/>
         <arg name="load_robot" value="true"/>
         <arg name="show_tf" value="true"/>
+        <arg name="hud_dist" default="0.5"/>
     </include>
     <node pkg="tf" type="static_transform_publisher" name="coordinate_vrviz_base_base"
         args="0 0 0 0 0 1.57079632679 odom vrviz_base  10" />

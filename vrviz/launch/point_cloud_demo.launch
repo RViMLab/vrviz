@@ -6,17 +6,20 @@
       <arg name="cloud_remap" value="/cloud"/>
       <arg name="scaling_factor" value="0.25"/>
       <arg name="point_size" value="1"/>
+      <!-- This does not work due to the camera_info messages not being synced.
+      <arg name="image_remap" value="/camera/rgb/image_raw"/ 
+      <arg name="hud_dist" default="0.5"/>-->
     </include>
     <node pkg="tf" type="static_transform_publisher" name="coordinate_vrviz_base_base"
         args="0 0 0 -1.57079632679 0 1.57079632679 base_link vrviz_base  10" />
 
 	<param name="use_sim_time" value="true" />
-        <node pkg="rosbag" type="play" name="player" output="screen" args=" -r 2.0 --clock $(arg bagfile)"/>
+        <node pkg="rosbag" type="play" name="player" output="screen" args=" data_throttled_camera_info:=/camera/rgb/camera_info data_throttled_image/compressed:=/camera/rgb/image_raw/compressed -r 2.0 --clock $(arg bagfile)"/>
 
     <node pkg="image_transport" type="republish" name="color_repub"
         args="compressed raw">
-        <remap from="in"  to="/data_throttled_image"/>
-        <remap from="out" to="/data_throttled_image"/>
+        <remap from="in"  to="/camera/rgb/image_raw"/>
+        <remap from="out" to="/camera/rgb/image_raw"/>
     </node>
     <node pkg="image_transport" type="republish" name="depth_repub"
         args="compressedDepth raw">
@@ -35,7 +38,7 @@
     <!--rosrun nodelet nodelet load depth_image_proc/register nodelet_manager-->
     <node pkg="nodelet" type="nodelet" name="RGB_Depth_Registration"
         args="load depth_image_proc/register nodelet_manager">
-		<remap from="rgb/camera_info"             to="/data_throttled_camera_info" />
+		<remap from="rgb/camera_info"             to="/camera/rgb/camera_info" />
 		<remap from="depth/camera_info"           to="camera/depth/camera_info" />
 		<remap from="depth/image_rect"            to="/data_throttled_image_depth" />
 		<remap from="depth_registered/image_rect" to="camera/depth/points" />
@@ -43,8 +46,8 @@
     <!--rosrun nodelet nodelet load depth_image_proc/point_cloud_xyz nodelet_manager image_rect:=camera/depth/image_rect camera_info:=camera/depth/camera_info-->
     <node pkg="nodelet" type="nodelet" name="XYZRGB_Point_Cloud"
         args="load depth_image_proc/point_cloud_xyzrgb nodelet_manager">
-        <remap from="rgb/camera_info"             to="/data_throttled_camera_info"/>
-        <remap from="rgb/image_rect_color"        to="/data_throttled_image"/>
+        <remap from="rgb/camera_info"             to="/camera/rgb/camera_info"/>
+        <remap from="rgb/image_rect_color"        to="/camera/rgb/image_raw"/>
         <remap from="depth_registered/image_rect" to="/data_throttled_image_depth"/>
         <remap from="depth_registered/points"     to="/cloud"/>
     </node>
