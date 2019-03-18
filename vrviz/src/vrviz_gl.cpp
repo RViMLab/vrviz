@@ -1280,7 +1280,8 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
         }
     }
 
-    Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(cloud_in->header.frame_id);
+    Matrix4 mat = Matrix4().identity();
+    pVRVizApplication->m_strPointCloudFrame = cloud_in->header.frame_id;
 
     std::vector<float> vertdataarray;
 

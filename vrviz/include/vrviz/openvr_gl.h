@@ -123,8 +123,9 @@ public:
 
 	unsigned int m_unPointSize;
 	std::string m_strTextPath;
-    std::string m_strActionManifestPath;
+	std::string m_strActionManifestPath;
 	std::vector<Mesh*> robot_meshes;
+	std::string m_strPointCloudFrame;
 protected:
 	bool m_bDebugOpenGL;
 	bool m_bVerbose;
@@ -137,7 +138,7 @@ protected:
 	std::string m_strDisplay;
 	vr::TrackedDevicePose_t m_rTrackedDevicePose[ vr::k_unMaxTrackedDeviceCount ];
 	Matrix4 m_rmat4DevicePose[ vr::k_unMaxTrackedDeviceCount ];
-	
+
 	struct ControllerInfo_t
 	{
 		vr::VRInputValueHandle_t m_source = vr::k_ulInvalidInputValueHandle;
@@ -180,9 +181,9 @@ protected:
 	int m_iSceneVolumeDepth;
 	float m_fScaleSpacing;
 	float m_fScale;
-	
+
 	int m_iSceneVolumeInit;                                  // if you want something other than the default 20x20x20
-	
+
 	float m_fNearClip;
 	float m_fFarClip;
 
@@ -235,15 +236,15 @@ protected:
 	GLuint m_unSceneProgramID;
 	GLuint m_unCompanionWindowProgramID;
 	GLuint m_unControllerTransformProgramID;
-    GLuint m_unRenderModelProgramID;
-    GLuint m_unLitRGBModelProgramID;
-    GLuint m_unLitModelProgramID;
+	GLuint m_unRenderModelProgramID;
+	GLuint m_unLitRGBModelProgramID;
+	GLuint m_unLitModelProgramID;
 
 	GLint m_nSceneMatrixLocation;
 	GLint m_nControllerMatrixLocation;
-    GLint m_nRenderModelMatrixLocation;
-    GLint m_nLitRGBModelMatrixLocation;
-    GLint m_nLitModelMatrixLocation;
+	GLint m_nRenderModelMatrixLocation;
+	GLint m_nLitRGBModelMatrixLocation;
+	GLint m_nLitModelMatrixLocation;
 
     GLuint m_WVPRGBLocation;
     GLuint m_WorldMatrixRGBLocation;
