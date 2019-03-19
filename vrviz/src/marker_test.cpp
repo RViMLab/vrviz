@@ -9,6 +9,10 @@
 
 ros::Publisher g_marker_pub;
 
+/// Params
+bool silly_shapes = true;
+std::string shape_frame = "/vrviz_base";
+
 std::vector<std::string> tf_cache;
 
 visualization_msgs::Marker frame_label(std::string frame_id){
@@ -37,7 +41,7 @@ void publishCallback(const ros::TimerEvent&)
     {
         /// Add some instructions for the demo
         visualization_msgs::Marker marker;
-        marker.header.frame_id = "/vrviz_base";
+        marker.header.frame_id = shape_frame;
         marker.header.stamp = ros::Time::now();
         marker.ns = "marker_text";
         marker.id = 0;
@@ -54,81 +58,287 @@ void publishCallback(const ros::TimerEvent&)
         marker.text="USE WAND TRIGGER TO DRIVE";
         msg.markers.push_back(marker);
     }
-//    {
-//        /// Add some silly shapes
-//        visualization_msgs::Marker marker;
-//        marker.header.frame_id = "/vrviz_base";
-//        marker.header.stamp = ros::Time::now();
-//        marker.ns = "sphere";
-//        marker.id = 0;
-//        marker.type = visualization_msgs::Marker::SPHERE;
-//        marker.action = visualization_msgs::Marker::ADD;
-//        marker.pose.position.x = 0.2;
-//        marker.pose.position.y = 0.7;
-//        marker.pose.position.z =-0.2;
-//        marker.scale.x = 0.10;
-//        marker.scale.y = 0.10;
-//        marker.scale.z = 0.10;
-//        marker.pose.orientation.x = 0.0;
-//        marker.pose.orientation.y = 0.0;
-//        marker.pose.orientation.z = 0.0;
-//        marker.pose.orientation.w = 1.0;
-//        marker.color.r=1.0;
-//        marker.color.g=0.0;
-//        marker.color.b=0.0;
-//        marker.color.a=1.0;
-//        msg.markers.push_back(marker);
-//    }
-//    {
-//        /// Add some silly shapes
-//        visualization_msgs::Marker marker;
-//        marker.header.frame_id = "/vrviz_base";
-//        marker.header.stamp = ros::Time::now();
-//        marker.ns = "cube";
-//        marker.id = 0;
-//        marker.type = visualization_msgs::Marker::CUBE;
-//        marker.action = visualization_msgs::Marker::ADD;
-//        marker.pose.position.x =-0.5;
-//        marker.pose.position.y = 0.7;
-//        marker.pose.position.z =-0.5;
-//        marker.scale.x = 0.3;
-//        marker.scale.y = 0.5;
-//        marker.scale.z = 0.7;
-//        marker.pose.orientation.x = 0.146629;
-//        marker.pose.orientation.y = 0.311454;
-//        marker.pose.orientation.z = 0.733143;
-//        marker.pose.orientation.w = 0.586514;
-//        marker.color.r=0.0;
-//        marker.color.g=1.0;
-//        marker.color.b=0.0;
-//        marker.color.a=1.0;
-//        msg.markers.push_back(marker);
-//    }
-//    {
-//        /// Add some silly shapes
-//        visualization_msgs::Marker marker;
-//        marker.header.frame_id = "/vrviz_base";
-//        marker.header.stamp = ros::Time::now();
-//        marker.ns = "cylinder";
-//        marker.id = 0;
-//        marker.type = visualization_msgs::Marker::CYLINDER;
-//        marker.action = visualization_msgs::Marker::ADD;
-//        marker.pose.position.x = 0.5;
-//        marker.pose.position.y = 0.7;
-//        marker.pose.position.z =-0.5;
-//        marker.scale.x = 0.2;
-//        marker.scale.y = 0.2;
-//        marker.scale.z = 0.5;
-//        marker.pose.orientation.x = 0.443047;
-//        marker.pose.orientation.y = 0.235269;
-//        marker.pose.orientation.z = 0.553809;
-//        marker.pose.orientation.w = 0.664570;
-//        marker.color.r=0.0;
-//        marker.color.g=0.0;
-//        marker.color.b=1.0;
-//        marker.color.a=1.0;
-//        msg.markers.push_back(marker);
-//    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "sphere";
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::SPHERE;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = 0.2;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.2;
+        marker.scale.x = 0.10;
+        marker.scale.y = 0.10;
+        marker.scale.z = 0.10;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+        marker.color.r=1.0;
+        marker.color.g=0.0;
+        marker.color.b=0.0;
+        marker.color.a=1.0;
+        msg.markers.push_back(marker);
+    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "cube";
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::CUBE;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x =-0.5;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.5;
+        marker.scale.x = 0.3;
+        marker.scale.y = 0.5;
+        marker.scale.z = 0.7;
+        marker.pose.orientation.x = 0.146629;
+        marker.pose.orientation.y = 0.311454;
+        marker.pose.orientation.z = 0.733143;
+        marker.pose.orientation.w = 0.586514;
+        marker.color.r=0.0;
+        marker.color.g=1.0;
+        marker.color.b=0.0;
+        marker.color.a=1.0;
+        msg.markers.push_back(marker);
+    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "cylinder";
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::CYLINDER;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = 0.5;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.5;
+        marker.scale.x = 0.2;
+        marker.scale.y = 0.2;
+        marker.scale.z = 0.5;
+        marker.pose.orientation.x = 0.443047;
+        marker.pose.orientation.y = 0.235269;
+        marker.pose.orientation.z = 0.553809;
+        marker.pose.orientation.w = 0.664570;
+        marker.color.r=0.0;
+        marker.color.g=0.0;
+        marker.color.b=1.0;
+        marker.color.a=1.0;
+        msg.markers.push_back(marker);
+    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "arrow";
+        marker.id = 1;
+        marker.type = visualization_msgs::Marker::ARROW;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = .1;
+        marker.pose.position.y = .2;
+        marker.pose.position.z =-.7;
+        marker.scale.x = 1.0/3.0;
+        marker.scale.y = 0.1;
+        marker.scale.z = 0.1;
+        marker.pose.orientation.x = 0.443047;
+        marker.pose.orientation.y = 0.235269;
+        marker.pose.orientation.z = 0.553809;
+        marker.pose.orientation.w = 0.664570;
+        marker.color.r=1.0;
+        marker.color.g=0.0;
+        marker.color.b=1.0;
+        marker.color.a=1.0;
+        msg.markers.push_back(marker);
+    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "line";
+        marker.id = 1;
+        marker.type = visualization_msgs::Marker::LINE_LIST;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = .1;
+        marker.pose.position.y = .2;
+        marker.pose.position.z =-.7;
+        marker.scale.x = 0.01;
+        marker.scale.y = 1;
+        marker.scale.z = 1;
+        marker.pose.orientation.x = 0.443047;
+        marker.pose.orientation.y = 0.235269;
+        marker.pose.orientation.z = 0.553809;
+        marker.pose.orientation.w = 0.664570;
+        marker.color.r=1.0;
+        marker.color.g=0.0;
+        marker.color.b=0.0;
+        marker.color.a=1.0;
+        for(float angle=0.0;angle<2*M_PI;angle+=0.15){
+            geometry_msgs::Point pt;
+            pt.x = cos(angle)/3.0;
+            pt.y = sin(angle)/3.0;
+            pt.z = angle/10.0;
+            marker.points.push_back(pt);
+        }
+        msg.markers.push_back(marker);
+    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "line";
+        marker.id = 2;
+        marker.type = visualization_msgs::Marker::LINE_STRIP;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = .2;
+        marker.pose.position.y = .1;
+        marker.pose.position.z =-.5;
+        marker.scale.x = 0.01;
+        marker.scale.y = 1;
+        marker.scale.z = 1;
+        marker.pose.orientation.x = 0.443047;
+        marker.pose.orientation.y = 0.235269;
+        marker.pose.orientation.z = 0.553809;
+        marker.pose.orientation.w = 0.664570;
+        marker.color.r=1.0;
+        marker.color.g=1.0;
+        marker.color.b=0.0;
+        marker.color.a=1.0;
+        for(float angle=0.0;angle<2*M_PI;angle+=0.15){
+            geometry_msgs::Point pt;
+            pt.x = cos(angle)/4.0;
+            pt.y = sin(angle)/4.0;
+            pt.z = angle/10.0;
+            marker.points.push_back(pt);
+        }
+        msg.markers.push_back(marker);
+    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "lists";
+        marker.id = 1;
+        marker.type = visualization_msgs::Marker::CUBE_LIST;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = .2;
+        marker.pose.position.y = .1;
+        marker.pose.position.z =-.5;
+        marker.scale.x = 0.01;
+        marker.scale.y = 0.02;
+        marker.scale.z = 0.03;
+        marker.pose.orientation.x = 0.443047;
+        marker.pose.orientation.y = 0.235269;
+        marker.pose.orientation.z = 0.553809;
+        marker.pose.orientation.w = 0.664570;
+        marker.color.r=0.0;
+        marker.color.g=1.0;
+        marker.color.b=1.0;
+        marker.color.a=1.0;
+        for(float angle=0.0;angle<2*M_PI;angle+=0.15){
+            geometry_msgs::Point pt;
+            pt.x = cos(angle)/5.0;
+            pt.y = sin(angle)/5.0;
+            pt.z = angle/10.0;
+            marker.points.push_back(pt);
+            std_msgs::ColorRGBA color;
+            color.a = 1.0;
+            color.r = 1.0 - angle/(2*M_PI);
+            color.g = 1.0 - angle/(2*M_PI);
+            color.b = 1.0;
+            marker.colors.push_back(color);
+        }
+        msg.markers.push_back(marker);
+    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "lists";
+        marker.id = 2;
+        marker.type = visualization_msgs::Marker::SPHERE_LIST;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = .2;
+        marker.pose.position.y = .1;
+        marker.pose.position.z =-.5;
+        marker.scale.x = 0.02;
+        marker.scale.y = 1;
+        marker.scale.z = 1;
+        marker.pose.orientation.x = 0.443047;
+        marker.pose.orientation.y = 0.235269;
+        marker.pose.orientation.z = 0.553809;
+        marker.pose.orientation.w = 0.664570;
+        marker.color.r=0.0;
+        marker.color.g=1.0;
+        marker.color.b=1.0;
+        marker.color.a=1.0;
+        for(float angle=0.0;angle<2*M_PI;angle+=0.15){
+            geometry_msgs::Point pt;
+            pt.x = cos(angle)/6.0;
+            pt.y = sin(angle)/6.0;
+            pt.z = angle/10.0;
+            marker.points.push_back(pt);
+        }
+        msg.markers.push_back(marker);
+    }
+    if(silly_shapes)
+    {
+        /// Add some silly shapes
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = shape_frame;
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "lists";
+        marker.id = 3;
+        marker.type = visualization_msgs::Marker::POINTS;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = .2;
+        marker.pose.position.y = .1;
+        marker.pose.position.z =-.5;
+        marker.scale.x = 0.02;
+        marker.scale.y = 1;
+        marker.scale.z = 1;
+        marker.pose.orientation.x = 0.443047;
+        marker.pose.orientation.y = 0.235269;
+        marker.pose.orientation.z = 0.553809;
+        marker.pose.orientation.w = 0.664570;
+        marker.color.r=0.0;
+        marker.color.g=1.0;
+        marker.color.b=1.0;
+        marker.color.a=1.0;
+        for(float angle=0.0;angle<2*M_PI;angle+=0.15){
+            geometry_msgs::Point pt;
+            pt.x = cos(angle)/8.0;
+            pt.y = sin(angle)/8.0;
+            pt.z = angle/10.0;
+            marker.points.push_back(pt);
+            std_msgs::ColorRGBA color;
+            color.a = 1.0;
+            color.r = angle/(2*M_PI);
+            color.g = 1.0 - angle/(2*M_PI);
+            color.b = 0.0;
+            marker.colors.push_back(color);
+        }
+        msg.markers.push_back(marker);
+    }
     /// Send a text marker at the origin of every frame we know about
     for(int idx=0;idx<tf_cache.size();idx++){
         msg.markers.push_back(frame_label(tf_cache[idx]));
@@ -208,10 +418,13 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "marker_test");
   ros::NodeHandle n;
+  ros::NodeHandle pnh("~");
 
   ros::Subscriber tf_sub = n.subscribe("/tf", 1, tf_Callback);
   g_marker_pub = n.advertise<visualization_msgs::MarkerArray> ("marker_array", 0);
   ros::Timer publish_timer = n.createTimer(ros::Duration(1), publishCallback);
+  pnh.getParam("silly_shapes",silly_shapes);
+  pnh.getParam("shape_frame",shape_frame);
 
   tf::TransformBroadcaster tf_broadcaster;
 
