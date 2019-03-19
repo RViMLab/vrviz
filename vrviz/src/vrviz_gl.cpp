@@ -1209,47 +1209,6 @@ int find_or_add_marker(visualization_msgs::Marker marker){
     return -2;
 }
 
-/*!
- * \brief Callback for an array of Visualization Markers
- *
- * \warning This currently only works with text!
- *
- * \todo Allow standard RGB color
- * \todo Allow Marker::MESH_RESOURCE (should be easy, just call loadModel())
- * \todo Allow spheres, cubes, cylinders, lines, etc.
- *
- * \param msg
- */
-void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
-{
-    std::vector<float> texturedvertdataarray;
-
-    for(int ii=0;ii<msg->markers.size();ii++)
-    {
-        find_or_add_marker(msg->markers[ii]);
-        if(msg->markers[ii].type==visualization_msgs::Marker::TEXT_VIEW_FACING){
-
-            Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(msg->markers[ii].header.frame_id);
-
-            tf::StampedTransform trans;
-            trans.setOrigin(tf::Vector3(msg->markers[ii].pose.position.x,msg->markers[ii].pose.position.y,msg->markers[ii].pose.position.z));
-            trans.setRotation(tf::Quaternion(msg->markers[ii].pose.orientation.x,msg->markers[ii].pose.orientation.y,msg->markers[ii].pose.orientation.z,msg->markers[ii].pose.orientation.w));
-            Matrix4 matTransform4 = pVRVizApplication->VrTransform(trans);
-            //matTransform4.translate(pt.x,pt.y,pt.z);
-            Matrix4 mat4 = mat * matTransform4;
-
-            /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
-            float height=msg->markers[ii].scale.z*scaling_factor;
-
-            pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,msg->markers[ii].text,height);
-        }
-    }
-    /// Copy the data over to the shared data
-    /// \todo This should be protected with a mutex of sorts!
-    textured_tris_vertdataarray=texturedvertdataarray;
-    scene_update_needed=true;
-}
-
 void lockCallback(const std_msgs::Bool::ConstPtr& lock_in)
 {
     pVRVizApplication->setLock(lock_in->data);
@@ -1529,7 +1488,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& image_msg,
  * \param mod_url
  * \return
  */
-bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
+bool loadModel(std::string mod_url,std::string frame_id,Matrix4 trans,Vector3 scale,std::string name="")
 {
     if (mod_url.find("package://") == 0)
     {
@@ -1553,8 +1512,12 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
     }
 
     Mesh* myMesh = new Mesh;
-    myMesh->name=name;
-    myMesh->frame_id=name;
+    if(name.length()>0){
+        myMesh->name=name;
+    }else{
+        myMesh->name=frame_id;
+    }
+    myMesh->frame_id=frame_id;
     myMesh->scale=scale;
     myMesh->trans=trans;
     myMesh->fallback_texture_filename=fallback_texture_filename;
@@ -1743,6 +1706,59 @@ bool loadRobot(float vr_scale=1.f){
     return true;
 }
 #endif
+
+/*!
+ * \brief Callback for an array of Visualization Markers
+ *
+ * \warning This currently only works with text!
+ *
+ * \todo Allow standard RGB color
+ * \todo Allow Marker::MESH_RESOURCE (should be easy, just call loadModel())
+ * \todo Allow spheres, cubes, cylinders, lines, etc.
+ *
+ * \param msg
+ */
+void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
+{
+    std::vector<float> texturedvertdataarray;
+
+    for(int ii=0;ii<msg->markers.size();ii++)
+    {
+        find_or_add_marker(msg->markers[ii]);
+        if(msg->markers[ii].type==visualization_msgs::Marker::TEXT_VIEW_FACING){
+
+            Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(msg->markers[ii].header.frame_id);
+
+            tf::StampedTransform trans;
+            trans.setOrigin(tf::Vector3(msg->markers[ii].pose.position.x,msg->markers[ii].pose.position.y,msg->markers[ii].pose.position.z));
+            trans.setRotation(tf::Quaternion(msg->markers[ii].pose.orientation.x,msg->markers[ii].pose.orientation.y,msg->markers[ii].pose.orientation.z,msg->markers[ii].pose.orientation.w));
+            Matrix4 matTransform4 = pVRVizApplication->VrTransform(trans);
+            //matTransform4.translate(pt.x,pt.y,pt.z);
+            Matrix4 mat4 = mat * matTransform4;
+
+            /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
+            float height=msg->markers[ii].scale.z*scaling_factor;
+
+            pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,msg->markers[ii].text,height);
+        }else if(msg->markers[ii].type==visualization_msgs::Marker::MESH_RESOURCE){
+            std::stringstream ss;
+            ss << msg->markers[ii].ns;
+            ss << msg->markers[ii].id;
+            /// \todo this needs to come from the marker pose
+            Matrix4 trans;
+            trans.identity();
+            Vector3 scale(scaling_factor,scaling_factor,scaling_factor);
+            /// This doesn't work because Mesh::MeshEntry::Init can't be called from the callback thread.
+            /// \todo we need a way to send the marker to the other thread but tell it to load when it's ready.
+            //loadModel(msg->markers[ii].mesh_resource,msg->markers[ii].header.frame_id,trans,scale,ss.str());
+            ROS_WARN_THROTTLE(5.0,"Sorry, mesh resources are not yet implemented. If you want to use them let one of the developers know on GitHub.");
+        }
+    }
+    /// Copy the data over to the shared data
+    /// \todo This should be protected with a mutex of sorts!
+    textured_tris_vertdataarray=texturedvertdataarray;
+    scene_update_needed=true;
+}
 
 //-----------------------------------------------------------------------------
 // Purpose:

@@ -415,10 +415,9 @@ void Mesh::InitMarker(float scaling_factor)
             InitCube(Vertices,Indices,Vector3(radius.x,radius.x,radius.x),color,mat8);
         }
     }else if(marker.type==visualization_msgs::Marker::TEXT_VIEW_FACING){
-        float height=marker.scale.z*scaling_factor; /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
-        //pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,marker.text,height);
+        /// Implimented in the main loop, since it uses the textured pipeline
     }else if(marker.type==visualization_msgs::Marker::MESH_RESOURCE){
-        /// Not implimented.
+        /// Implimented in the main loop, since it uses the textured pipeline
     }else if(marker.type==visualization_msgs::Marker::TRIANGLE_LIST){
         InitTriangles(Vertices,Indices,mat6,radius,marker.points,marker.colors,color);
     }
