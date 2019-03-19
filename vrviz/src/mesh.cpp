@@ -341,11 +341,12 @@ void Mesh::InitMarker(float scaling_factor)
             mat8 = quat2mat(quatPoint2Point(gpos1,gpos2,distance));
             mat9 = mat7 * mat8;
 
-            if(idx<marker.colors.size()){
-                /// If there are per-cube colors, use those
-                color.x = marker.colors[idx].r;
-                color.y = marker.colors[idx].g;
-                color.z = marker.colors[idx].b;
+            if(idx<marker.colors.size()-1){
+                /// \warning this is supposed to blend colors from colors[idx] at points[idx] to colors[idx+1] at points[idx+1], but we don't have that ability so we just average them.
+                /// \todo figure out if we can easily do per-vertex color, since that would fix this.
+                color.x = (marker.colors[idx].r+marker.colors[idx+1].r)/2.0;
+                color.y = (marker.colors[idx].g+marker.colors[idx+1].g)/2.0;
+                color.z = (marker.colors[idx].b+marker.colors[idx+1].b)/2.0;
             }
             /// Not properly implimented. This should be a simple camera-facing quad.
             /// We use a cylinder because making things face the camera is annoying to impliment using this code.

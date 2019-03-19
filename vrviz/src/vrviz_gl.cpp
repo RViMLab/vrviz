@@ -87,6 +87,7 @@ bool show_grid=true;
 bool show_movement=true;
 float intensity_max=0.0;
 bool manual_image_copy = false;
+int overlay_alpha = 255;
 
 /// This is a flag that tells the VR code that we have new ROS data
 /// \todo This should be a semaphore or mutex
@@ -1412,7 +1413,7 @@ void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
                     /// Set the alpha to non-transparent
                     /// \todo Could make this a param, to allow people to overlay translucent images
                     idx=(raw_image_msg->height-1-y)*raw_image_msg->step+x*3;
-                    image_flipped.at<cv::Vec4b>(y,x)[3] = 255;
+                    image_flipped.at<cv::Vec4b>(y,x)[3] = overlay_alpha;
                 }
             }
             //ROS_INFO("Set up image. Cols=%d,Rows=%d",image_flipped.cols,image_flipped.rows);
@@ -1420,8 +1421,7 @@ void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
         }
         if(raw_image_msg->encoding==sensor_msgs::image_encodings::BGR8)
         {
-            /// Right now we only go from BGR -> RGBA
-            /// \todo RGB -> RGBA would be pretty easy to impliment, if anyone want it.
+            /// to go from BGR -> RGBA while also flipping
             for(y=0;y<raw_image_msg->height;y++)
             {
                 /// I tried a few different ways of looping through the data, and this is the fastest one I found.
@@ -1446,7 +1446,23 @@ void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
 //                    image_flipped.at<cv::Vec4b>(y,x)[0] = raw_image_msg->data[idx+2];
 //                    image_flipped.at<cv::Vec4b>(y,x)[1] = raw_image_msg->data[idx+1];
 //                    image_flipped.at<cv::Vec4b>(y,x)[2] = raw_image_msg->data[idx+0];
-//                    image_flipped.at<cv::Vec4b>(y,x)[3] = 255;
+//                    image_flipped.at<cv::Vec4b>(y,x)[3] = overlay_alpha;
+                }
+            }
+        }else if(raw_image_msg->encoding==sensor_msgs::image_encodings::RGB8)
+        {
+            /// to go from RGB -> RGBA while also flipping
+            for(y=0;y<raw_image_msg->height;y++)
+            {
+                uchar* pixel = image_flipped.ptr<uchar>(y);  // point to first color in row
+                const uchar* pixel2 = &(raw_image_msg->data[(raw_image_msg->height-1-y)*raw_image_msg->step]);  // point to first color in row
+                for(x=0;x<raw_image_msg->width;x++)
+                {
+                    /// Should take same time as bgr, which is ~30ms for 2x1080p
+                    *pixel++=*pixel2++;
+                    *pixel++=*pixel2++;
+                    *pixel=*pixel2++;
+                    pixel+=2;/// Add an extra to skip the Alpha
                 }
             }
         }else{
@@ -1794,6 +1810,7 @@ int main(int argc, char *argv[])
     pnh->getParam("frame_prefix", frame_prefix);
     pnh->getParam("intensity_max", intensity_max);
     pnh->getParam("manual_image_copy", manual_image_copy);
+    pnh->getParam("overlay_alpha", overlay_alpha);
 
     /// Default to 720p companion window
     int window_width=1280;

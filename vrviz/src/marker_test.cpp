@@ -192,6 +192,15 @@ void publishCallback(const ros::TimerEvent&)
             pt.y = sin(angle)/3.0;
             pt.z = angle/10.0;
             marker.points.push_back(pt);
+            std_msgs::ColorRGBA color;
+            color.a = 1.0;
+            color.r = angle/(2*M_PI);
+            color.g = 1.0 - angle/(2*M_PI);
+            color.b = 0.0;
+//            color.r = (sin(angle*234634623.)+1)/2.0;
+//            color.g = (sin(angle*454737257.)+1)/2.0;
+//            color.b = (sin(angle*372754645.)+1)/2.0;
+            marker.colors.push_back(color);
         }
         msg.markers.push_back(marker);
     }
