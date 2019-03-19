@@ -20,6 +20,11 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+/// Needed for camera rendering
+#include <image_transport/image_transport.h>
+#include <image_geometry/pinhole_camera_model.h>
+#include <sensor_msgs/image_encodings.h>
+
 /// PCL specific includes
 #include <pcl_ros/point_cloud.h>
 #include <pcl/conversions.h>
@@ -53,10 +58,15 @@ struct tf_obj{
 
 /// ROS Objects
 ros::NodeHandle* nh;
+ros::NodeHandle* pnh;
 ros::Publisher controller_pub[3];
 ros::Publisher twist_pub;
 tf::TransformBroadcaster* broadcaster;
 tf::TransformListener* listener;
+image_transport::ImageTransport* image_transporter;
+image_geometry::PinholeCameraModel cam_model;
+std::string camera_frame_id;
+bool camera_image_received = false;
 
 /// Parameters
 std::string vrviz_include_path;
@@ -174,6 +184,9 @@ private:
 
         if( bSuccess )
         {
+            /// This seems to break sbs mode, and for cameras it looks weird to draw on top of everything, so we don't use it.
+            /// But if in a later update it works for sbs mode, it would be nice to use.
+            //vr::VROverlay()->SetHighQualityOverlay(m_ulOverlayHandle);
 
             vr::VROverlay()->SetOverlayFlag(m_ulOverlayHandle, vr::VROverlayFlags_SideBySide_Parallel, sbs_image );
             vr::VROverlay()->SetOverlayWidthInMeters(m_ulOverlayHandle, hud_size*hud_dist);
@@ -364,6 +377,31 @@ private:
     }
 
     //-----------------------------------------------------------------------------
+    // Purpose: Converts a SteamVR matrix to our local matrix class
+    //-----------------------------------------------------------------------------
+    vr::HmdMatrix34_t ConvertMatrix4ToSteamVRMatrix( const Matrix4 &matPose )
+    {
+        vr::HmdMatrix34_t matrixObj;
+        matrixObj.m[0][0]=matPose.get()[0];
+        matrixObj.m[1][0]=matPose.get()[1];
+        matrixObj.m[2][0]=matPose.get()[2];
+        //                              3
+        matrixObj.m[0][1]=matPose.get()[4];
+        matrixObj.m[1][1]=matPose.get()[5];
+        matrixObj.m[2][1]=matPose.get()[6];
+        //                              7
+        matrixObj.m[0][2]=matPose.get()[8];
+        matrixObj.m[1][2]=matPose.get()[9];
+        matrixObj.m[2][2]=matPose.get()[10];
+        //                              11
+        matrixObj.m[0][3]=matPose.get()[12];
+        matrixObj.m[1][3]=matPose.get()[13];
+        matrixObj.m[2][3]=matPose.get()[14];
+        //                              15
+        return matrixObj;
+    }
+
+    //-----------------------------------------------------------------------------
     // Purpose: This function is intended to set up semi-perminant aspects of the
     //          scene, which for our purposes consists of ROS messages which should
     //          be arriving at ~10hz, whereas we hope that RenderScene will run at
@@ -391,6 +429,34 @@ private:
             vr::Texture_t texture = {(void*)(uintptr_t)textureFromImage, vr::TextureType_OpenGL, vr::ColorSpace_Auto };
             /// Set this texture to appear on the overlay and enable it. \note this may not need to be done every time?
             vr::VROverlay()->SetOverlayTexture( m_ulOverlayHandle, &texture );
+
+            /// Only mess with location if it's a camera. If it's a plain image msg, we just put it directly in front of the HMD.
+            if(camera_image_received){
+                /// We should actually use some matrix from cam_model, but this is approximate.
+                /// We use hfov instead of hud_size, since it's a camera so we know the FOV.
+                float hfov = 2*atan(cam_model.cameraInfo().width/(2.0*cam_model.fx()));
+                /// Flip the image 180 about x, to match ROS's camera frame standard
+                /// And put it hud_dist away. This is a param, and may be adjusted.
+                Matrix4 mat1;
+                mat1.set(1,0,0,0,
+                         0,-1,0,0,
+                         0,0,-1,0,
+                         0,0,hud_dist,1);
+    //            cv::Matx34d proj = cam_model.projectionMatrix();
+    //            mat1.set(proj.val[0],proj.val[1],proj.val[2],0,
+    //                     proj.val[3],proj.val[4],proj.val[5],0,
+    //                     proj.val[6],proj.val[7],proj.val[8],0,
+    //                     0,0,hud_dist,1);
+    //            std::cout << "mat1="<< std::endl << mat1<< std::endl;
+                /// Get the location that the "monitor" should be. It'll be hud_dist away from the optical frame of the camera.
+                Matrix4 monitor_loc=GetRobotMatrixPose(camera_frame_id)*mat1;
+                /// Make it a VR matrix
+                OverlayTransform=ConvertMatrix4ToSteamVRMatrix(monitor_loc);
+                /// Set the transform and width. Note that the width probably won't change, as camera params are usually static.
+                vr::VROverlay()->SetOverlayTransformAbsolute(m_ulOverlayHandle, vr::TrackingUniverseStanding, &OverlayTransform);
+                vr::VROverlay()->SetOverlayWidthInMeters(m_ulOverlayHandle, hfov*hud_dist);
+            }
+            /// Set the overlay to visible.
             vr::VROverlay()->ShowOverlay(m_ulOverlayHandle);
 #endif
         }else{
@@ -1214,7 +1280,8 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
         }
     }
 
-    Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(cloud_in->header.frame_id);
+    Matrix4 mat = Matrix4().identity();
+    pVRVizApplication->m_strPointCloudFrame = cloud_in->header.frame_id;
 
     std::vector<float> vertdataarray;
 
@@ -1321,6 +1388,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
 }
 
 
+
 /*!
  * \brief rawImageCallback
  *
@@ -1424,6 +1492,19 @@ void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
 
     /// We have new data, so trigger a scene update
     scene_update_needed=true;
+}
+
+void cameraCallback(const sensor_msgs::ImageConstPtr& image_msg,
+                    const sensor_msgs::CameraInfoConstPtr& info_msg)
+{
+    cam_model.fromCameraInfo(info_msg);
+
+    camera_frame_id=image_msg->header.frame_id;
+    //ROS_INFO("Got image callback, frame_id=%s",camera_frame_id.c_str());
+
+    camera_image_received = true;
+
+    rawImageCallback(image_msg);
 }
 
 #ifndef USE_VULKAN
@@ -1660,8 +1741,14 @@ int main(int argc, char *argv[])
     std::string node_name="vrviz_gl";
 #endif
     ros::init(argc, argv, node_name);
-    nh = new ros::NodeHandle("~");
+    nh = new ros::NodeHandle;
+    pnh = new ros::NodeHandle("~");
 
+
+    image_transporter = new image_transport::ImageTransport(*nh);
+
+    std::string image_topic = nh->resolveName("image");
+    image_transport::CameraSubscriber sub_camera = image_transporter->subscribeCamera(image_topic, 1, cameraCallback);
 
     ros::Subscriber sub_markers = nh->subscribe("/markers", 1, markers_Callback);
     ros::Subscriber sub_image = nh->subscribe("/rgb/image_raw", 1, rawImageCallback);
@@ -1687,32 +1774,32 @@ int main(int argc, char *argv[])
     ros::Timer timer = nh->createTimer(ros::Duration(0.033), &VRVizApplication::update_tf_cache,pVRVizApplication);
 
     /// These params should probably be made dynamic?
-    nh->getParam("scaling_factor", scaling_factor);
-    nh->getParam("hud_dist", hud_dist);
-    nh->getParam("hud_size", hud_size);
-    nh->getParam("point_size", point_size);
-    nh->getParam("load_robot", load_robot);
-    nh->getParam("show_tf", show_tf);
-    nh->getParam("show_grid", show_grid);
-    nh->getParam("show_movement", show_movement);
-    nh->getParam("sbs_image", sbs_image);
+    pnh->getParam("scaling_factor", scaling_factor);
+    pnh->getParam("hud_dist", hud_dist);
+    pnh->getParam("hud_size", hud_size);
+    pnh->getParam("point_size", point_size);
+    pnh->getParam("load_robot", load_robot);
+    pnh->getParam("show_tf", show_tf);
+    pnh->getParam("show_grid", show_grid);
+    pnh->getParam("show_movement", show_movement);
+    pnh->getParam("sbs_image", sbs_image);
 
     /// These params are probably not going to be changed, but are here just in case
-    nh->getParam("vrviz_include_path", vrviz_include_path);
-    nh->getParam("texture_filename", texture_filename);
-    nh->getParam("fallback_texture_filename", fallback_texture_filename);
-    nh->getParam("texture_character_map", texture_character_map);
-    nh->getParam("base_frame", base_frame);
-    nh->getParam("intermediate_frame", intermediate_frame);
-    nh->getParam("frame_prefix", frame_prefix);
-    nh->getParam("intensity_max", intensity_max);
-    nh->getParam("manual_image_copy", manual_image_copy);
+    pnh->getParam("vrviz_include_path", vrviz_include_path);
+    pnh->getParam("texture_filename", texture_filename);
+    pnh->getParam("fallback_texture_filename", fallback_texture_filename);
+    pnh->getParam("texture_character_map", texture_character_map);
+    pnh->getParam("base_frame", base_frame);
+    pnh->getParam("intermediate_frame", intermediate_frame);
+    pnh->getParam("frame_prefix", frame_prefix);
+    pnh->getParam("intensity_max", intensity_max);
+    pnh->getParam("manual_image_copy", manual_image_copy);
 
     /// Default to 720p companion window
     int window_width=1280;
     int window_height=720;
-    nh->getParam("window_width", window_width);
-    nh->getParam("window_height", window_height);
+    pnh->getParam("window_width", window_width);
+    pnh->getParam("window_height", window_height);
 
 
     /// The scaling factor allows us to render large or small things in 'VR world'

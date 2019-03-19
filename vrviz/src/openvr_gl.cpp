@@ -1619,7 +1619,7 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 
 		// draw the point cloud
 		glUseProgram( m_unControllerTransformProgramID );
-		glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, GetCurrentViewProjectionMatrix( nEye ).get() );
+		glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, (GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(m_strPointCloudFrame)).get() );
 		glBindVertexArray( m_unPointCloudVAO );
 		glPointSize( m_unPointSize );
 		glDrawArrays( GL_POINTS, 0, m_uiPointCloudVertcount );
