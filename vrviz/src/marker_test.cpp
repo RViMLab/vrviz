@@ -10,7 +10,7 @@
 ros::Publisher g_marker_pub;
 
 /// Params
-bool silly_shapes = true;
+bool silly_shapes = false;
 std::string shape_frame = "/vrviz_base";
 
 std::vector<std::string> tf_cache;
@@ -172,9 +172,9 @@ void publishCallback(const ros::TimerEvent&)
         marker.id = 1;
         marker.type = visualization_msgs::Marker::LINE_LIST;
         marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = .1;
-        marker.pose.position.y = .2;
-        marker.pose.position.z =-.7;
+        marker.pose.position.x = 0.5;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.5;
         marker.scale.x = 0.01;
         marker.scale.y = 1;
         marker.scale.z = 1;
@@ -214,9 +214,9 @@ void publishCallback(const ros::TimerEvent&)
         marker.id = 2;
         marker.type = visualization_msgs::Marker::LINE_STRIP;
         marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = .2;
-        marker.pose.position.y = .1;
-        marker.pose.position.z =-.5;
+        marker.pose.position.x = 0.5;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.5;
         marker.scale.x = 0.01;
         marker.scale.y = 1;
         marker.scale.z = 1;
@@ -247,9 +247,9 @@ void publishCallback(const ros::TimerEvent&)
         marker.id = 1;
         marker.type = visualization_msgs::Marker::CUBE_LIST;
         marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = .2;
-        marker.pose.position.y = .1;
-        marker.pose.position.z =-.5;
+        marker.pose.position.x = 0.5;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.5;
         marker.scale.x = 0.01;
         marker.scale.y = 0.02;
         marker.scale.z = 0.03;
@@ -286,9 +286,9 @@ void publishCallback(const ros::TimerEvent&)
         marker.id = 2;
         marker.type = visualization_msgs::Marker::SPHERE_LIST;
         marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = .2;
-        marker.pose.position.y = .1;
-        marker.pose.position.z =-.5;
+        marker.pose.position.x = 0.5;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.5;
         marker.scale.x = 0.02;
         marker.scale.y = 1;
         marker.scale.z = 1;
@@ -319,9 +319,9 @@ void publishCallback(const ros::TimerEvent&)
         marker.id = 3;
         marker.type = visualization_msgs::Marker::POINTS;
         marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = .2;
-        marker.pose.position.y = .1;
-        marker.pose.position.z =-.5;
+        marker.pose.position.x = 0.5;
+        marker.pose.position.y = 0.7;
+        marker.pose.position.z =-0.5;
         marker.scale.x = 0.02;
         marker.scale.y = 1;
         marker.scale.z = 1;

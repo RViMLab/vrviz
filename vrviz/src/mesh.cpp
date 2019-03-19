@@ -317,31 +317,32 @@ void Mesh::InitMarker(float scaling_factor)
             increment = 2;
         }
         Matrix4 mat7,mat8,mat9;
-        for(int idx=0;idx<marker.points.size()-1;idx+=increment)
+        for(int idx=0;idx<((int) marker.points.size())-1;idx+=increment)
         {
             /// Get the points in global coords
-            Vector4 pos1(marker.points[idx].x,
-                        marker.points[idx].y,
-                        marker.points[idx].z,1);
-            Vector4 gpos1 = pos1*mat6;
-            Vector4 pos2(marker.points[idx+1].x,
-                        marker.points[idx+1].y,
-                        marker.points[idx+1].z,1);
-            Vector4 gpos2 = pos2*mat6;
+            Vector4 pos1(marker.points[idx].x*scaling_factor,
+                        marker.points[idx].y*scaling_factor,
+                        marker.points[idx].z*scaling_factor,1);
+            Vector4 gpos1 = mat6*pos1;
+            Vector4 pos2(marker.points[idx+1].x*scaling_factor,
+                        marker.points[idx+1].y*scaling_factor,
+                        marker.points[idx+1].z*scaling_factor,1);
+            Vector4 gpos2 = mat6*pos2;
 
-            float distance = std::sqrt((marker.points[idx].x-marker.points[idx+1].x)*(marker.points[idx].x+marker.points[idx+1].x)+
-                                       (marker.points[idx].y-marker.points[idx+1].y)*(marker.points[idx].y+marker.points[idx+1].y)+
-                                       (marker.points[idx].z-marker.points[idx+1].z)*(marker.points[idx].z+marker.points[idx+1].z));
+            float distance = std::sqrt((marker.points[idx].x-marker.points[idx+1].x)*(marker.points[idx].x-marker.points[idx+1].x)+
+                                       (marker.points[idx].y-marker.points[idx+1].y)*(marker.points[idx].y-marker.points[idx+1].y)+
+                                       (marker.points[idx].z-marker.points[idx+1].z)*(marker.points[idx].z-marker.points[idx+1].z))*scaling_factor;
 
             /// Translate to the average of the two points, since cylinder & cube are both centered.
-            mat7.translate((marker.points[idx].x+marker.points[idx+1].x)/2.0,
-                           (marker.points[idx].y+marker.points[idx+1].y)/2.0,
-                           (marker.points[idx].z+marker.points[idx+1].z)/2.0);
+            mat7.identity();
+            mat7.translate((gpos1.x+gpos2.x)/2.0*scaling_factor,
+                           (gpos1.y+gpos2.y)/2.0*scaling_factor,
+                           (gpos1.z+gpos2.z)/2.0*scaling_factor);
             /// Also get rotation to point from one point towards the other
             mat8 = quat2mat(quatPoint2Point(gpos1,gpos2,distance));
             mat9 = mat7 * mat8;
 
-            if(idx<marker.colors.size()-1){
+            if(idx<((int) marker.colors.size())-1){
                 /// \warning this is supposed to blend colors from colors[idx] at points[idx] to colors[idx+1] at points[idx+1], but we don't have that ability so we just average them.
                 /// \todo figure out if we can easily do per-vertex color, since that would fix this.
                 color.x = (marker.colors[idx].r+marker.colors[idx+1].r)/2.0;
@@ -350,11 +351,11 @@ void Mesh::InitMarker(float scaling_factor)
             }
             /// Not properly implimented. This should be a simple camera-facing quad.
             /// We use a cylinder because making things face the camera is annoying to impliment using this code.
-            InitCylinder(Vertices,Indices,mat9,radius.x,distance,color,6);
+//            InitCylinder(Vertices,Indices,mat9,radius.x,distance,color,6);
             /// We could also use a box, it's less verts, but also a bit silly looking from certain angles.
-            //radius.z = distance;
-            //radius.y = radius.x;
-            //InitCube(Vertices,Indices,radius,color,mat9);
+            radius.z = distance/2.0;
+            radius.y = radius.x;
+            InitCube(Vertices,Indices,radius,color,mat9);
 
         }
     }else if(marker.type==visualization_msgs::Marker::CUBE_LIST){
@@ -362,9 +363,10 @@ void Mesh::InitMarker(float scaling_factor)
         for(int idx=0;idx<marker.points.size();idx++)
         {
             /// Make simple translation matrix
-            mat7.translate(marker.points[idx].x,
-                           marker.points[idx].y,
-                           marker.points[idx].z);
+            mat7.identity();
+            mat7.translate(marker.points[idx].x*scaling_factor,
+                           marker.points[idx].y*scaling_factor,
+                           marker.points[idx].z*scaling_factor);
             mat8 = mat6*mat7;
             if(idx<marker.colors.size()){
                 /// If there are per-cube colors, use those
@@ -378,10 +380,10 @@ void Mesh::InitMarker(float scaling_factor)
         for(int idx=0;idx<marker.points.size();idx++)
         {
             /// Only bother getting the position, it's a sphere so who cares about orientation
-            Vector4 pos(marker.points[idx].x,
-                        marker.points[idx].y,
-                        marker.points[idx].z,1);
-            Vector4 gpos = pos*mat6;
+            Vector4 pos(marker.points[idx].x*scaling_factor,
+                        marker.points[idx].y*scaling_factor,
+                        marker.points[idx].z*scaling_factor,1);
+            Vector4 gpos = mat6*pos;
             if(idx<marker.colors.size()){
                 /// If there are per-sphere colors, use those
                 color.x = marker.colors[idx].r;
@@ -392,13 +394,15 @@ void Mesh::InitMarker(float scaling_factor)
             InitSphere(Vertices,Indices,radius.x,color,gpos);
         }
     }else if(marker.type==visualization_msgs::Marker::POINTS){
+        Matrix4 mat7,mat8;
         for(int idx=0;idx<marker.points.size();idx++)
         {
-            /// Only bother getting the position, it's a sphere so who cares about orientation
-            Vector4 pos(marker.points[idx].x,
-                        marker.points[idx].y,
-                        marker.points[idx].z,1);
-            Vector4 gpos = pos*mat6;
+            /// Make simple translation matrix
+            mat7.identity();
+            mat7.translate(marker.points[idx].x*scaling_factor,
+                           marker.points[idx].y*scaling_factor,
+                           marker.points[idx].z*scaling_factor);
+            mat8 = mat6*mat7;
             if(idx<marker.colors.size()){
                 /// If there are per-point colors, use those
                 color.x = marker.colors[idx].r;
@@ -408,7 +412,7 @@ void Mesh::InitMarker(float scaling_factor)
             /// scale.x should be diameter, so radius.x is radius
             /// We use a reduced number of facets, since in rviz this is just 1 quad facing the camera anyways.
             /// We could use a cube too if we wanted.
-            InitSphere(Vertices,Indices,radius.x,color,gpos,2);
+            InitCube(Vertices,Indices,Vector3(radius.x,radius.x,radius.x),color,mat8);
         }
     }else if(marker.type==visualization_msgs::Marker::TEXT_VIEW_FACING){
         float height=marker.scale.z*scaling_factor; /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
