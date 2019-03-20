@@ -1,5 +1,6 @@
 
 <launch>
+    <arg name="silly_shapes" default="false"/>
 
     <include file="$(find vrviz)/launch/vrviz.launch">
         <arg name="cloud_remap" value="/camera/depth/points"/>
@@ -20,7 +21,9 @@
       <arg name="gui" value="false"/>
     </include>
 
-    <node pkg="vrviz" type="marker_test" name="marker_test" />
+    <node pkg="vrviz" type="marker_test" name="marker_test" >
+        <param name="silly_shapes" value="$(arg silly_shapes)" />
+    </node>
 
 	
 </launch>

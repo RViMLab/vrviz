@@ -358,16 +358,16 @@ void publishCallback(const ros::TimerEvent&)
         marker.header.frame_id = shape_frame;
         marker.header.stamp = ros::Time::now();
         marker.ns = "marker_test_mesh";
-        marker.id = 0;
+        marker.id = 42;
         marker.type = visualization_msgs::Marker::MESH_RESOURCE;
         marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.position.x = 0.0;
-        marker.pose.position.y = 0.0;
-        marker.pose.position.z = 0.0;
-        marker.pose.orientation.x = 0.0;
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;
+        marker.pose.position.x = 0.35;
+        marker.pose.position.y = 1.00;
+        marker.pose.position.z =-0.35;
+        marker.pose.orientation.x = 0.443047;
+        marker.pose.orientation.y = 0.235269;
+        marker.pose.orientation.z = 0.553809;
+        marker.pose.orientation.w = 0.664570;
         marker.scale.x = 1.0;
         marker.scale.y = 1.0;
         marker.scale.z = 1.0;
@@ -377,7 +377,9 @@ void publishCallback(const ros::TimerEvent&)
         marker.color.a = 1.0;
         marker.frame_locked = true;
         //marker.mesh_resource = "package://vrviz/meshes/flag.dae";
-        marker.mesh_resource = "package://turtlebot_description/meshes/stacks/hexagons/plate_top.dae";
+        /// The main body of the kobuki is textured and easy to recognize, so it makes a good example object.
+        /// Also, it will be installed if you have turtlebot gazebo so it should be already installed for anyone runnign turtlebot_demo.launch
+        marker.mesh_resource = "package://kobuki_description/meshes/main_body.dae";
         marker.mesh_use_embedded_materials = true;
         msg.markers.push_back(marker);
     }

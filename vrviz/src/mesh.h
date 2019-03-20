@@ -72,6 +72,7 @@ public:
 
     bool LoadMesh(const std::string& Filename);
     void InitMarker(float scaling_factor=1.0);
+    Matrix4 quat2mat(geometry_msgs::Quaternion quat);
 
     void Render();
 
@@ -81,6 +82,8 @@ public:
     bool has_texture;
     bool initialized;
     bool needs_update;
+    bool load_mesh;
+    std::string filename;
 
     visualization_msgs::Marker marker;
 
@@ -91,7 +94,6 @@ public:
 
 private:
     geometry_msgs::Quaternion quatPoint2Point(Vector4 p1, Vector4 p2, float distance);
-    Matrix4 quat2mat(geometry_msgs::Quaternion quat);
     bool InitFromScene(const aiScene* pScene, const std::string& Filename);
     Vector4 sphere2cart(float azimuth, float elevation, float radius);
     void AddColorVertex(Vector4 pt,Vector4 normal,Vector3 color, std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices);

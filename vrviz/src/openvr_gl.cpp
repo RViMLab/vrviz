@@ -1617,13 +1617,16 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 		glDrawArrays( GL_LINES, 0, m_uiControllerVertcount );
 		glBindVertexArray( 0 );
 
-		// draw the point cloud
-		glUseProgram( m_unControllerTransformProgramID );
-		glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, (GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(m_strPointCloudFrame)).get() );
-		glBindVertexArray( m_unPointCloudVAO );
-		glPointSize( m_unPointSize );
-		glDrawArrays( GL_POINTS, 0, m_uiPointCloudVertcount );
-		glBindVertexArray( 0 );
+        // Only bother drawing if there are points. This avoids calls to GetRobotMatrixPose() where m_strPointCloudFrame is an empty string.
+        if(m_uiPointCloudVertcount>0){
+            // draw the point cloud
+            glUseProgram( m_unControllerTransformProgramID );
+            glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, (GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(m_strPointCloudFrame)).get() );
+            glBindVertexArray( m_unPointCloudVAO );
+            glPointSize( m_unPointSize );
+            glDrawArrays( GL_POINTS, 0, m_uiPointCloudVertcount );
+            glBindVertexArray( 0 );
+        }
 
 		// draw the color triangle mesh
 		glUseProgram( m_unControllerTransformProgramID );
@@ -1653,8 +1656,11 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 
         //robot_meshes[idx]->Render();
         for(int jj=0;jj<robot_meshes[idx]->m_Entries.size();jj++){
-            if(robot_meshes[idx]->initialized){
-                //std::cout << "Rendering " << robot_meshes[idx]->name << " ID=" << robot_meshes[idx]->id << std::endl;
+            if(robot_meshes[idx]->initialized && !robot_meshes[idx]->load_mesh){
+                if(robot_meshes[idx]->frame_id.length()==0)
+                {
+                    std::cout << "empty frameid when rendering " << robot_meshes[idx]->name << " ID=" << robot_meshes[idx]->id << " FrameID=" << robot_meshes[idx]->frame_id << std::endl;
+                }
 
                 if(robot_meshes[idx]->m_Entries[jj].MaterialIndex!=NO_TEXTURE){
 

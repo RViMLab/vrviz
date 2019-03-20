@@ -113,6 +113,7 @@ Mesh::Mesh()
     scale.y=1.0;
     scale.z=1.0;
     Z_UP=false;
+    load_mesh=false;
 }
 
 
@@ -139,7 +140,6 @@ bool Mesh::LoadMesh(const std::string& Filename)
     Assimp::Importer Importer;
 
     const aiScene* pScene = Importer.ReadFile(Filename.c_str(), ASSIMP_LOAD_FLAGS);
-
     if (pScene) {
         Ret = InitFromScene(pScene, Filename);
     }
@@ -298,10 +298,11 @@ void Mesh::InitMarker(float scaling_factor)
 
     if(marker.type==visualization_msgs::Marker::ARROW){
         /// scale.x is length
+        /// \warning there's a custom arrow type in rviz where you can use points to define the shape. That isn't implemented here.
         float length=marker.scale.x*scaling_factor; /// Use scale.x to specify the height.
         InitArrow(Vertices,Indices,mat6,radius.y,radius.z,length,color);
     }else if(marker.type==visualization_msgs::Marker::CUBE){
-
+        /// scale x,y,z all used
         InitCube(Vertices,Indices,radius,color,mat6);
     }else if(marker.type==visualization_msgs::Marker::SPHERE){
         /// scale.x should be diameter, so radius.x is radius
@@ -312,6 +313,7 @@ void Mesh::InitMarker(float scaling_factor)
         InitCylinder(Vertices,Indices,mat6,radius.x,length,color);
     }else if(marker.type==visualization_msgs::Marker::LINE_STRIP || marker.type==visualization_msgs::Marker::LINE_LIST){
         /// The only difference between them is that a strip goes 0->1->2->3, while a list goes 0->1  2->3
+        /// \warning This is not properly implimented, but it may be functional.
         int increment = 1;
         if(marker.type==visualization_msgs::Marker::LINE_LIST){
             increment = 2;
@@ -350,7 +352,7 @@ void Mesh::InitMarker(float scaling_factor)
                 color.z = (marker.colors[idx].b+marker.colors[idx+1].b)/2.0;
             }
             /// Not properly implimented. This should be a simple camera-facing quad.
-            /// We use a cylinder because making things face the camera is annoying to impliment using this code.
+            /// We could use a cylinder because making things face the camera is annoying to impliment using this code.
 //            InitCylinder(Vertices,Indices,mat9,radius.x,distance,color,6);
             /// We could also use a box, it's less verts, but also a bit silly looking from certain angles.
             radius.z = distance/2.0;
@@ -416,15 +418,29 @@ void Mesh::InitMarker(float scaling_factor)
         }
     }else if(marker.type==visualization_msgs::Marker::TEXT_VIEW_FACING){
         /// Implimented in the main loop, since it uses the textured pipeline
-    }else if(marker.type==visualization_msgs::Marker::MESH_RESOURCE){
-        /// Implimented in the main loop, since it uses the textured pipeline
     }else if(marker.type==visualization_msgs::Marker::TRIANGLE_LIST){
         InitTriangles(Vertices,Indices,mat6,radius,marker.points,marker.colors,color);
     }
 
-    m_Entries[0].Init(Vertices,Indices);
-    initialized=true;
-    needs_update=false;
+    if(marker.type==visualization_msgs::Marker::MESH_RESOURCE){
+        /// This is a separate if, since we don't want to call Init for meshes, we want to call LoadMesh
+        /// \todo load_mesh and initialized are probably redundant, so they could probably be simplified.
+        /// \warning the mesh is only loaded once, so if the pose/orientation of a MESH_RESOURCE changes this won't detect that.
+        if(load_mesh){
+            if(LoadMesh(filename)){
+                initialized=true;
+                needs_update=false;
+            }else{
+                initialized=false;
+            }
+            /// I don't know why it would succeed on further attempts, so don't keep trying?
+            load_mesh=false;
+        }
+    }else{
+        m_Entries[0].Init(Vertices,Indices);
+        initialized=true;
+        needs_update=false;
+    }
 }
 
 void Mesh::InitCube(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Vector3 radius, Vector3 color, Matrix4 mat )
@@ -700,7 +716,6 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
             v.vNormal.v[1]=nm_trans.y;
             v.vNormal.v[2]=nm_trans.z;
 
-
             Vertices.push_back(v);
         }
         for (unsigned int i = 0 ; i < paiMesh->mNumFaces ; i++) {
@@ -766,7 +781,6 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
             v.vNormal.v[0]=nm_trans.x;
             v.vNormal.v[1]=nm_trans.y;
             v.vNormal.v[2]=nm_trans.z;
-
 
             Vertices.push_back(v);
         }
