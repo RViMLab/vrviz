@@ -71,6 +71,7 @@ Features
  - Visualizing stereo pair image (currently expects one side-by-side image, or duplicates the same image to each eye)
  - Visualizing camera image (projects out from camera location)
  - Visualizing visualization messages (All [types](http://wiki.ros.org/rviz/DisplayTypes/Marker) are at least basically supported, but may not perform identically to rviz)
+   - to see a variety of markers, run `roslaunch vrviz turtlebot_demo.launch silly_shapes:=true`
 
 Limitations
 -----------
