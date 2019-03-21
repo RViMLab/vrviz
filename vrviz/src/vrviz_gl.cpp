@@ -88,6 +88,13 @@ bool show_movement=true;
 float intensity_max=0.0;
 bool manual_image_copy = false;
 int overlay_alpha = 255;
+bool teleport_mode=true;
+float teleport_throw_speed=10.0;///!< m/s
+float teleport_gravity=9.81;///!< m/s^2, 9.81 for Earth, 3.7 for Mars
+float teleport_dt=0.005;///!< seconds, smaller is more smooth, but slower
+float teleport_r=0.0;///!< 0->1
+float teleport_g=1.0;///!< 0->1
+float teleport_b=1.0;///!< 0->1
 
 /// This is a flag that tells the VR code that we have new ROS data
 /// \todo This should be a semaphore or mutex
@@ -134,6 +141,7 @@ private:
     Matrix4 move_current_trans_mat;
     Matrix4 move_trans_mat;
     Matrix4 move_trans_mat_old;
+    Vector3 teleport_target;
     std::vector<tf_obj> tf_cache;
 
    public:
@@ -266,8 +274,13 @@ private:
         }
         if(move_id!=-1 && show_movement){
             /// Show the frames we are using to move the scene
-            add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05/scaling_factor);
-            add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07/scaling_factor);
+            if(teleport_mode)
+            {
+                add_projectile_to_scene(move_current_trans_mat,vertdataarray,teleport_throw_speed,Vector3(teleport_r,teleport_g,teleport_b),teleport_dt,teleport_gravity);
+            }else{
+                add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05/scaling_factor);
+                add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07/scaling_factor);
+            }
         }
         if(show_grid){
             add_grid_to_scene(vertdataarray);
@@ -647,6 +660,77 @@ private:
         vertdata.push_back(color.z);
     }
 
+    void add_projectile_to_scene( Matrix4 mat, std::vector<float> &vertdataarray, float v0=10.0, Vector3 color=Vector3( 0, 1, 1 ), float dt=0.01,float g=9.81)
+    {
+        Vector4 dir = mat * Vector4( 0, 0, -1, 0 );
+
+        /// Assuming gravity is in -y
+        float v_y=v0*dir.y;
+        float v_r=v0*sqrt(dir.x*dir.x+dir.z*dir.z);
+        float v_z=v_r*dir.z;
+        float v_x=v_r*dir.x;
+        float x=mat[12]/m_fScale;
+        float y=mat[13]/m_fScale;
+        float z=mat[14]/m_fScale;
+        while ( y>0.0 )
+        {
+
+            vertdataarray.push_back( x );
+            vertdataarray.push_back( y );
+            vertdataarray.push_back( z );
+
+            vertdataarray.push_back( color.x );
+            vertdataarray.push_back( color.y );
+            vertdataarray.push_back( color.z );
+
+            v_y-=dt*g;/// Gravity pulling us back to earth
+            x+=v_x*dt;
+            y+=v_y*dt;
+            z+=v_z*dt;
+
+            vertdataarray.push_back( x );
+            vertdataarray.push_back( y );
+            vertdataarray.push_back( z );
+
+            vertdataarray.push_back( color.x );
+            vertdataarray.push_back( color.y );
+            vertdataarray.push_back( color.z );
+
+            m_uiControllerVertcount += 2;
+        }
+        teleport_target.x = x;
+        teleport_target.y = 0.0;
+        teleport_target.z = z;
+        float dr=0.05;
+        float theta=-dr;
+        float radius=0.5;
+        float nx = x+radius*cos(theta);
+        float nz = z+radius*sin(theta);
+        for(;theta<2*M_PI;theta+=dr)
+        {
+
+            vertdataarray.push_back( nx );
+            vertdataarray.push_back( y );
+            vertdataarray.push_back( nz );
+
+            vertdataarray.push_back( color.x );
+            vertdataarray.push_back( color.y );
+            vertdataarray.push_back( color.z );
+
+            nx = x+radius*cos(theta);
+            nz = z+radius*sin(theta);
+
+            vertdataarray.push_back( nx );
+            vertdataarray.push_back( y );
+            vertdataarray.push_back( nz );
+
+            vertdataarray.push_back( color.x );
+            vertdataarray.push_back( color.y );
+            vertdataarray.push_back( color.z );
+
+        }
+    }
+
     void add_frame_to_scene( Matrix4 mat, std::vector<float> &vertdataarray, float radius, int num_dof=3)
     {
 
@@ -855,11 +939,15 @@ private:
 
                 if(ulMoveWorld == m_rHand[eHand].m_source){
                     if(move_id==controller_id){
-                        ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
                         move_current_trans_mat  = mat;
-                        Matrix4 move_current_trans_mat_inverse = move_current_trans_mat;
-                        move_current_trans_mat_inverse.invert();
-                        move_trans_mat = move_trans_mat_old * (move_previous_trans_mat * move_current_trans_mat_inverse);
+                        if(teleport_mode){
+                            /// Do nothing
+                        }else{
+                            ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
+                            Matrix4 move_current_trans_mat_inverse = move_current_trans_mat;
+                            move_current_trans_mat_inverse.invert();
+                            move_trans_mat = move_trans_mat_old * (move_previous_trans_mat * move_current_trans_mat_inverse);
+                        }
                     }else if(move_id==-1){
                         /// This is the first we have heard about this
                         move_id=controller_id;
@@ -873,7 +961,15 @@ private:
                         /// We thought they pressed this trigger, but it appears not anymore
                         ROS_WARN("Released controller %d",controller_id);
                         move_id=-1;
-                        move_trans_mat_old = move_trans_mat;
+
+                        if(teleport_mode)
+                        {
+                            /// \todo We should move to where the person actually is, not the origin
+                            //move_trans_mat.translate(teleport_target.x-move_previous_trans_mat[12],0.0,teleport_target.z-move_previous_trans_mat[14]);
+                            move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
+                        }else{
+                            move_trans_mat_old = move_trans_mat;
+                        }
                     }
                 }
 
@@ -881,7 +977,14 @@ private:
         }else if(move_id!=-1){
             ROS_WARN("Released all controllers");
             move_id=-1;
-            move_trans_mat_old = move_trans_mat;
+            if(teleport_mode)
+            {
+                /// \todo We should move to where the person actually is, not the origin
+                //move_trans_mat.translate(teleport_target.x-move_previous_trans_mat[12],0.0,teleport_target.z-move_previous_trans_mat[14]);
+                move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
+            }else{
+                move_trans_mat_old = move_trans_mat;
+            }
         }
 
 
@@ -1851,6 +1954,15 @@ int main(int argc, char *argv[])
     pnh->getParam("show_grid", show_grid);
     pnh->getParam("show_movement", show_movement);
     pnh->getParam("sbs_image", sbs_image);
+
+    /// Teleport params
+    pnh->getParam("teleport_mode", teleport_mode);
+    pnh->getParam("teleport_throw_speed", teleport_throw_speed);
+    pnh->getParam("teleport_gravity", teleport_gravity);
+    pnh->getParam("teleport_dt", teleport_dt);
+    pnh->getParam("teleport_r", teleport_r);
+    pnh->getParam("teleport_g", teleport_g);
+    pnh->getParam("teleport_b", teleport_b);
 
     /// These params are probably not going to be changed, but are here just in case
     pnh->getParam("vrviz_include_path", vrviz_include_path);
