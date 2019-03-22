@@ -142,6 +142,7 @@ private:
     Matrix4 move_trans_mat;
     Matrix4 move_trans_mat_old;
     Vector3 teleport_target;
+    Vector3 teleport_start;
     std::vector<tf_obj> tf_cache;
 
    public:
@@ -660,18 +661,41 @@ private:
         vertdata.push_back(color.z);
     }
 
-    void add_projectile_to_scene( Matrix4 mat, std::vector<float> &vertdataarray, float v0=10.0, Vector3 color=Vector3( 0, 1, 1 ), float dt=0.01,float g=9.81)
+    void add_projectile_to_scene( Matrix4 mat,
+                                  std::vector<float> &vertdataarray,
+                                  float v0=10.0,
+                                  Vector3 color=Vector3( 0, 1, 1 ),
+                                  float dt=0.01,
+                                  float g=9.81,
+                                  Vector4 direction=Vector4( 0, 0, -1, 0 ))
     {
-        Vector4 dir = mat * Vector4( 0, 0, -1, 0 );
+        /// The direction we throw, relative to the ground.
+        /// In this case we want -Z of the controller, so we take -Z
+        /// as a free vector and multiply it by the matrix of the controller.
+        Vector4 dir = mat * direction;
 
         /// Assuming gravity is in -y
+        /// \warning This assumes dir is a unit vector
+        /// Y velocity is the vertical component
         float v_y=v0*dir.y;
-        float v_r=v0*sqrt(dir.x*dir.x+dir.z*dir.z);
-        float v_z=v_r*dir.z;
-        float v_x=v_r*dir.x;
-        float x=mat[12]/m_fScale;
-        float y=mat[13]/m_fScale;
-        float z=mat[14]/m_fScale;
+        /// Radial velocity is the horizontal component
+        float horiz_mag = std::sqrt(dir.x*dir.x+dir.z*dir.z);
+        float v_r=v0*horiz_mag;
+        /// Split radial into two directions
+        /// \note This may be wrong, but I think since sqrt(dir.x*dir.x+dir.z*dir.z) is not 1 we have to normalize the 2D vector, by dividing by the magnitude.
+        /// This could be done with trig and it would make more sense, but since we start with the 3D unit vector this way is much cheaper.
+        float v_z=v_r*dir.z/horiz_mag;
+        float v_x=v_r*dir.x/horiz_mag;
+        float x=mat[12];
+        float y=mat[13];
+        float z=mat[14];
+        /// Store the start point, since when we actually teleport that's what we warp to
+        /// \todo The user probably expects this to be closer to the HMD location than the controller position, but this is easier
+        teleport_start.x = x;
+        teleport_start.y = 0.0;
+        teleport_start.z = z;
+        /// Since we are accelerating in -y we stop when we pass y=0
+        /// \note with a huge velocity, e.g. 10^20 m/s this would take ~12,000 years long to return. Maybe a timeout or limit to velocity would be good?
         while ( y>0.0 )
         {
 
@@ -698,14 +722,24 @@ private:
 
             m_uiControllerVertcount += 2;
         }
+        /// We may have overshot a bit, so set y back to 0.0;
+        y = 0.0;
+
+        /// The end of the trajectory is used as the target of the teleport.
         teleport_target.x = x;
-        teleport_target.y = 0.0;
+        teleport_target.y = y;
         teleport_target.z = z;
+
+        /// Also draw a circle around the target point
         float dr=0.05;
+        /// Start one point negative, to complete the circle at the end
         float theta=-dr;
+        /// This radius looks good to me, but should maybe be a param
         float radius=0.5;
+        /// New x & y are circle around ending x & y
         float nx = x+radius*cos(theta);
         float nz = z+radius*sin(theta);
+        /// We use the same color, so people know that they are showing the same thing
         for(;theta<2*M_PI;theta+=dr)
         {
 
@@ -965,8 +999,8 @@ private:
                         if(teleport_mode)
                         {
                             /// \todo We should move to where the person actually is, not the origin
-                            //move_trans_mat.translate(teleport_target.x-move_previous_trans_mat[12],0.0,teleport_target.z-move_previous_trans_mat[14]);
-                            move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
+                            move_trans_mat.translate(teleport_target.x-teleport_start.x,teleport_target.y-teleport_start.y,teleport_target.z-teleport_start.z);
+                            //move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
                         }else{
                             move_trans_mat_old = move_trans_mat;
                         }
@@ -980,8 +1014,8 @@ private:
             if(teleport_mode)
             {
                 /// \todo We should move to where the person actually is, not the origin
-                //move_trans_mat.translate(teleport_target.x-move_previous_trans_mat[12],0.0,teleport_target.z-move_previous_trans_mat[14]);
-                move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
+                move_trans_mat.translate(teleport_target.x-teleport_start.x,teleport_target.y-teleport_start.y,teleport_target.z-teleport_start.z);
+                //move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
             }else{
                 move_trans_mat_old = move_trans_mat;
             }
