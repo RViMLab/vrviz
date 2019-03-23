@@ -1875,9 +1875,9 @@ int find_or_add_marker(visualization_msgs::Marker marker){
         ss << marker.id;
         /// \todo this needs to come from the marker pose
         Matrix4 trans;
-        trans.translate(marker.pose.position.x,
-                        marker.pose.position.y,
-                        marker.pose.position.z);
+        trans.translate(marker.pose.position.x*scaling_factor,
+                        marker.pose.position.y*scaling_factor,
+                        marker.pose.position.z*scaling_factor);
         Matrix4 rot = myMesh->quat2mat(marker.pose.orientation);
         Matrix4 full = trans*rot;
         Vector3 scale(scaling_factor,scaling_factor,scaling_factor);
