@@ -337,9 +337,9 @@ void Mesh::InitMarker(float scaling_factor)
 
             /// Translate to the average of the two points, since cylinder & cube are both centered.
             mat7.identity();
-            mat7.translate((gpos1.x+gpos2.x)/2.0*scaling_factor,
-                           (gpos1.y+gpos2.y)/2.0*scaling_factor,
-                           (gpos1.z+gpos2.z)/2.0*scaling_factor);
+            mat7.translate((gpos1.x+gpos2.x)/2.0,
+                           (gpos1.y+gpos2.y)/2.0,
+                           (gpos1.z+gpos2.z)/2.0);
             /// Also get rotation to point from one point towards the other
             mat8 = quat2mat(quatPoint2Point(gpos1,gpos2,distance));
             mat9 = mat7 * mat8;
