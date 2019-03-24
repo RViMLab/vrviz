@@ -881,7 +881,8 @@ private:
     void publish_navgoal(void)
     {
         geometry_msgs::PoseStamped navgoal_msg;
-        navgoal_msg.header.frame_id = intermediate_frame;
+        /// Use the Z-up version so that the nav stack doesn't complain about our quaternion relative to a Y-up frame
+        navgoal_msg.header.frame_id = intermediate_frame+"_zup";
         navgoal_msg.header.stamp = ros::Time::now();
         navgoal_msg.pose.position.x = navgoal_target.x/scaling_factor;
         navgoal_msg.pose.position.y = navgoal_target.y/scaling_factor;
@@ -937,6 +938,13 @@ private:
 //        broadcaster->sendTransform(tf::StampedTransform(TfTransform(m_mat4eyePosRight).inverse(), ros::Time::now(), frame_prefix + "_hmd", frame_prefix + "eye_right" ));
 
         broadcaster->sendTransform(tf::StampedTransform(TfTransform(move_trans_mat),ros::Time::now(), base_frame, intermediate_frame));
+
+        if(navgoal_mode)
+        {
+            /// For some reason the nav stack wants the quaternion to be a rotation about Z, even if the frame we send the goal in is rotated.
+            /// Therefore we make a Z-up version of intermediate_frame, then we can send a goal relative to that and the quaternion will be right.
+            broadcaster->sendTransform(tf::StampedTransform(tf::Transform(tf::Quaternion(tf::Vector3(0,0,1),-M_PI_2)), ros::Time::now(), intermediate_frame, intermediate_frame + "_zup" ));
+        }
 
         geometry_msgs::Twist twist_msg;
         geometry_msgs::PoseStamped navgoal_msg;
