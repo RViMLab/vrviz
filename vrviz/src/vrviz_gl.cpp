@@ -885,16 +885,16 @@ private:
         navgoal_msg.header.frame_id = intermediate_frame+"_zup";
         navgoal_msg.header.stamp = ros::Time::now();
         navgoal_msg.pose.position.x = navgoal_target.x/scaling_factor;
-        navgoal_msg.pose.position.y = navgoal_target.y/scaling_factor;
-        navgoal_msg.pose.position.z = navgoal_target.z/scaling_factor;
+        navgoal_msg.pose.position.y =-navgoal_target.z/scaling_factor;
+        navgoal_msg.pose.position.z =-navgoal_target.y/scaling_factor;
         float theta = std::atan2(navgoal_target.x-navgoal_start.x,navgoal_target.z-navgoal_start.z);
         theta-=M_PI_2;
         if(theta<0.0){
             theta+=2*M_PI;
         }
         navgoal_msg.pose.orientation.x = 0;
-        navgoal_msg.pose.orientation.y = sin(theta/2.0);
-        navgoal_msg.pose.orientation.z = 0;
+        navgoal_msg.pose.orientation.y = 0;
+        navgoal_msg.pose.orientation.z = sin(theta/2.0);
         navgoal_msg.pose.orientation.w = cos(theta/2.0);
         navgoal_pub.publish(navgoal_msg);
     }
@@ -943,7 +943,7 @@ private:
         {
             /// For some reason the nav stack wants the quaternion to be a rotation about Z, even if the frame we send the goal in is rotated.
             /// Therefore we make a Z-up version of intermediate_frame, then we can send a goal relative to that and the quaternion will be right.
-            broadcaster->sendTransform(tf::StampedTransform(tf::Transform(tf::Quaternion(tf::Vector3(0,0,1),-M_PI_2)), ros::Time::now(), intermediate_frame, intermediate_frame + "_zup" ));
+            broadcaster->sendTransform(tf::StampedTransform(tf::Transform(tf::Quaternion(tf::Vector3(1,0,0),-M_PI_2)), ros::Time::now(), intermediate_frame, intermediate_frame + "_zup" ));
         }
 
         geometry_msgs::Twist twist_msg;
