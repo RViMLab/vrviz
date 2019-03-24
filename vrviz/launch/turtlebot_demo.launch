@@ -1,6 +1,9 @@
 
 <launch>
     <arg name="silly_shapes" default="false"/>
+    <arg name="navigation" default="false"/>
+    <param name="/vrviz/teleport_mode" value="true"/>
+    <param name="/vrviz/navgoal_mode" value="$(arg navigation)"/>
 
     <include file="$(find vrviz)/launch/vrviz.launch">
         <arg name="cloud_remap" value="/camera/depth/points"/>
@@ -25,5 +28,10 @@
         <param name="silly_shapes" value="$(arg silly_shapes)" />
     </node>
 
+    <!-- GROUP - SIMULATION -->
+    <group if="$(arg navigation)">
+        <include file="$(find turtlebot_gazebo)/launch/amcl_demo.launch"/>
+        <!--include file="$(find turtlebot_rviz_launchers)/launch/view_navigation.launch"/-->
+    </group>
 	
 </launch>
