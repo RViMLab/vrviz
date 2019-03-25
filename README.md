@@ -29,7 +29,7 @@ library, which is included in `openvr_library` and sdl2 which is included in `sd
 The code is designed to be used in ROS, and has been tested in ROS Kinetic on Ubuntu 16.04. Instructions for installing ROS can be found [here](http://wiki.ros.org/ROS/Installation) and other than the turtlebot demo, all ROS dependencies should be covered by `ros-kinetic-desktop-full`.
 
 The non-ROS dependencies include GLEW for rendering and [assimp](http://www.assimp.org/) for loading URDF robot models with Collada meshes.
-These should be able to be installed with:
+These should be able to be installed with rosdep or with:
 ```
 sudo apt-get install libglew-dev libassimp-dev
 ```
@@ -64,19 +64,20 @@ roslaunch vrviz video_demo.launch video_file:=/path/to/bbb_clip_sbs.mp4
 Features
 --------
  - The default RViz 1m grid
- - Scaling the VR world relative to the ROS world (currently set by rosparam at startup)
+ - Scaling the VR world relative to the ROS world (set by rosparam at startup)
  - Loading a robot model from the parameter server with `load_robot:=true`
  - Visualizing TF's (currently only TF's that have been referenced somewhere)
- - Visualizing PointCloud2 messages (currently expecting color)
+ - Visualizing PointCloud2 messages (works with color or intensity, otherwise sets constant color)
  - Visualizing stereo pair image (currently expects one side-by-side image, or duplicates the same image to each eye)
- - Visualizing visualization messages (currently expecting cube, sphere, cylinder or text)
+ - Visualizing camera image (projects out from camera location)
+ - Visualizing visualization messages (All [types](http://wiki.ros.org/rviz/DisplayTypes/Marker) are at least basically supported, but may not perform identically to rviz)
+   - to see a variety of markers, run `roslaunch vrviz turtlebot_demo.launch silly_shapes:=true`
 
 Limitations
 -----------
  - The code is very much a work in progress, and many features are partially or inefficiently implemented.
  - The [SteamVR support for Ubuntu](https://github.com/ValveSoftware/SteamVR-for-Linux) is still in Beta, so be careful.
- - Currently only supports one of each message type. This can be worked around by, for example, concatenating a bunch of point clouds in another node and then sending the big cloud into VRViz.
- - Images are just overlayed directly on the user's eyes, blocking view of the scene. Images could/should be placed in a location based on the camera info, but this is not implemented yet.
+ - Currently only supports one of each message type. This can be worked around by, for example, concatenating a bunch of point clouds in another node and then sending the big cloud into VRViz. Also multiple visualization messages could be mapped to the one receiver, as it should update based on namespace and ID.
  - Please feel free to open a feature request or add a pull request, there are lots of little improvements that we have not gotten around to but if there's a desire for them we would be happy to try.
 
 Vulkan

@@ -72,6 +72,7 @@ public:
 
     bool LoadMesh(const std::string& Filename);
     void InitMarker(float scaling_factor=1.0);
+    Matrix4 quat2mat(geometry_msgs::Quaternion quat);
 
     void Render();
 
@@ -81,6 +82,8 @@ public:
     bool has_texture;
     bool initialized;
     bool needs_update;
+    bool load_mesh;
+    std::string filename;
 
     visualization_msgs::Marker marker;
 
@@ -90,12 +93,14 @@ public:
     bool Z_UP;
 
 private:
+    geometry_msgs::Quaternion quatPoint2Point(Vector4 p1, Vector4 p2, float distance);
     bool InitFromScene(const aiScene* pScene, const std::string& Filename);
     Vector4 sphere2cart(float azimuth, float elevation, float radius);
     void AddColorVertex(Vector4 pt,Vector4 normal,Vector3 color, std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices);
     void AddColorTri(Vector4 pt1, Vector4 pt2, Vector4 pt3, Vector3 color, std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices);
     void InitCube(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Vector3 radius, Vector3 color, Matrix4 mat );
     void InitSphere(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, float radius, Vector3 color, Vector4 center, int num_lat=8, int num_lon=0 );
+    void InitArrow( std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Matrix4 mat, float radius_y,float radius_z, float length, Vector3 color, int num_facets=16 );
     void InitCylinder( std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Matrix4 mat, float radius, float length, Vector3 color, int num_facets=16 );
     void InitTriangles(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices,Matrix4 mat,Vector3 radius, std::vector<geometry_msgs::Point> &points,std::vector<std_msgs::ColorRGBA> &colors, Vector3 default_color);
     void InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* node);

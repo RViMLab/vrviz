@@ -113,6 +113,7 @@ Mesh::Mesh()
     scale.y=1.0;
     scale.z=1.0;
     Z_UP=false;
+    load_mesh=false;
 }
 
 
@@ -139,7 +140,6 @@ bool Mesh::LoadMesh(const std::string& Filename)
     Assimp::Importer Importer;
 
     const aiScene* pScene = Importer.ReadFile(Filename.c_str(), ASSIMP_LOAD_FLAGS);
-
     if (pScene) {
         Ret = InitFromScene(pScene, Filename);
     }
@@ -205,6 +205,70 @@ void Mesh::AddColorTri(Vector4 pt1, Vector4 pt2, Vector4 pt3, Vector3 color, std
     AddColorVertex(pt3,normal,color,Vertices,Indices);
 }
 
+geometry_msgs::Quaternion Mesh::quatPoint2Point(Vector4 p1,Vector4 p2,float distance)
+{
+    float x = p1.x;
+    float y = p1.y;
+    float z = p1.z;
+    float x_n = p2.x;
+    float y_n = p2.y;
+    float z_n = p2.z;
+
+    geometry_msgs::Quaternion q;
+
+    /// Ensure that there is a nonzero distance
+    if(distance < 1e-6){distance=1e-6;}
+
+    /// We need a quaternion from the vector change https://stackoverflow.com/questions/1171849/finding-quaternion-representing-the-rotation-from-one-vector-to-another
+    /// We take a cross product of the vector from the first point to the second point, and the natural orientation of the cyliner:(0,0,1)
+    q.x=-(y-y_n);
+    q.y=(x-x_n);
+    q.z=0.0;
+    /// Then since we used a unit vector for the cylinder, w is just the distance plus the dot product of the vector from the first point to the second point, and the natural orientation of the cyliner:(0,0,1)
+    q.w=distance + (z-z_n);
+    /// Normalize the quaternion
+    float quaternion_norm = sqrt(pow(q.x,2)+
+                                 pow(q.y,2)+
+                                 pow(q.z,2)+
+                                 pow(q.w,2));
+    if(quaternion_norm>0.000001){
+        /// The quaternion isn't close to zero, so it isn't singular.
+        q.x = q.x / quaternion_norm;
+        q.y = q.y / quaternion_norm;
+        q.z = q.z / quaternion_norm;
+        q.w = q.w / quaternion_norm;
+    }else{
+        /// The quaternion is close to singular! Just default to identity quat
+        q.x = 0.0;
+        q.y = 0.0;
+        q.z = 0.0;
+        q.w = 1.0;
+
+    }
+    return q;
+}
+
+Matrix4 Mesh::quat2mat(geometry_msgs::Quaternion quat)
+{
+    Matrix4 mat5;
+    tf::Quaternion q(quat.x,
+                     quat.y,
+                     quat.z,
+                     quat.w);
+    tf::Matrix3x3 m(q);
+    mat5.set(m.getColumn(0).getX(),
+             m.getColumn(0).getY(),
+             m.getColumn(0).getZ(),0,
+             m.getColumn(1).getX(),
+             m.getColumn(1).getY(),
+             m.getColumn(1).getZ(),0,
+             m.getColumn(2).getX(),
+             m.getColumn(2).getY(),
+             m.getColumn(2).getZ(),0,
+             0,0,0,1);
+    return mat5;
+}
+
 void Mesh::InitMarker(float scaling_factor)
 {
     m_Entries.resize(1);
@@ -225,33 +289,20 @@ void Mesh::InitMarker(float scaling_factor)
     Vector3 color(marker.color.r,
                   marker.color.g,
                   marker.color.b);
-    Matrix4 mat5;
-    tf::Quaternion q(marker.pose.orientation.x,
-                     marker.pose.orientation.y,
-                     marker.pose.orientation.z,
-                     marker.pose.orientation.w);
-    tf::Matrix3x3 m(q);
-    mat5.set(m.getColumn(0).getX(),
-             m.getColumn(0).getY(),
-             m.getColumn(0).getZ(),0,
-             m.getColumn(1).getX(),
-             m.getColumn(1).getY(),
-             m.getColumn(1).getZ(),0,
-             m.getColumn(2).getX(),
-             m.getColumn(2).getY(),
-             m.getColumn(2).getZ(),0,
-             0,0,0,1);
 
-    //mat5.rotate(q.getAngle(),q.getAxis().getX(),q.getAxis().getY(),q.getAxis().getZ());
+    Matrix4 mat5 = quat2mat(marker.pose.orientation);
+
     Matrix4 mat6 = mat4*mat5;
 
     Vector3 radius(marker.scale.x/2.0*scaling_factor,marker.scale.y/2.0*scaling_factor,marker.scale.z/2.0*scaling_factor);
 
     if(marker.type==visualization_msgs::Marker::ARROW){
-
-
+        /// scale.x is length
+        /// \warning there's a custom arrow type in rviz where you can use points to define the shape. That isn't implemented here.
+        float length=marker.scale.x*scaling_factor; /// Use scale.x to specify the height.
+        InitArrow(Vertices,Indices,mat6,radius.y,radius.z,length,color);
     }else if(marker.type==visualization_msgs::Marker::CUBE){
-
+        /// scale x,y,z all used
         InitCube(Vertices,Indices,radius,color,mat6);
     }else if(marker.type==visualization_msgs::Marker::SPHERE){
         /// scale.x should be diameter, so radius.x is radius
@@ -260,16 +311,136 @@ void Mesh::InitMarker(float scaling_factor)
         /// scale.x is diameter in x direction (currently don't support ellipse)
         float length=marker.scale.z*scaling_factor; /// Use scale.z to specify the height.
         InitCylinder(Vertices,Indices,mat6,radius.x,length,color);
+    }else if(marker.type==visualization_msgs::Marker::LINE_STRIP || marker.type==visualization_msgs::Marker::LINE_LIST){
+        /// The only difference between them is that a strip goes 0->1->2->3, while a list goes 0->1  2->3
+        /// \warning This is not properly implimented, but it may be functional.
+        int increment = 1;
+        if(marker.type==visualization_msgs::Marker::LINE_LIST){
+            increment = 2;
+        }
+        Matrix4 mat7,mat8,mat9;
+        for(int idx=0;idx<((int) marker.points.size())-1;idx+=increment)
+        {
+            /// Get the points in global coords
+            Vector4 pos1(marker.points[idx].x*scaling_factor,
+                        marker.points[idx].y*scaling_factor,
+                        marker.points[idx].z*scaling_factor,1);
+            Vector4 gpos1 = mat6*pos1;
+            Vector4 pos2(marker.points[idx+1].x*scaling_factor,
+                        marker.points[idx+1].y*scaling_factor,
+                        marker.points[idx+1].z*scaling_factor,1);
+            Vector4 gpos2 = mat6*pos2;
+
+            float distance = std::sqrt((marker.points[idx].x-marker.points[idx+1].x)*(marker.points[idx].x-marker.points[idx+1].x)+
+                                       (marker.points[idx].y-marker.points[idx+1].y)*(marker.points[idx].y-marker.points[idx+1].y)+
+                                       (marker.points[idx].z-marker.points[idx+1].z)*(marker.points[idx].z-marker.points[idx+1].z))*scaling_factor;
+
+            /// Translate to the average of the two points, since cylinder & cube are both centered.
+            mat7.identity();
+            mat7.translate((gpos1.x+gpos2.x)/2.0,
+                           (gpos1.y+gpos2.y)/2.0,
+                           (gpos1.z+gpos2.z)/2.0);
+            /// Also get rotation to point from one point towards the other
+            mat8 = quat2mat(quatPoint2Point(gpos1,gpos2,distance));
+            mat9 = mat7 * mat8;
+
+            if(idx<((int) marker.colors.size())-1){
+                /// \warning this is supposed to blend colors from colors[idx] at points[idx] to colors[idx+1] at points[idx+1], but we don't have that ability so we just average them.
+                /// \todo figure out if we can easily do per-vertex color, since that would fix this.
+                color.x = (marker.colors[idx].r+marker.colors[idx+1].r)/2.0;
+                color.y = (marker.colors[idx].g+marker.colors[idx+1].g)/2.0;
+                color.z = (marker.colors[idx].b+marker.colors[idx+1].b)/2.0;
+            }
+            /// Not properly implimented. This should be a simple camera-facing quad.
+            /// We could use a cylinder because making things face the camera is annoying to impliment using this code.
+//            InitCylinder(Vertices,Indices,mat9,radius.x,distance,color,6);
+            /// We could also use a box, it's less verts, but also a bit silly looking from certain angles.
+            radius.z = distance/2.0;
+            radius.y = radius.x;
+            InitCube(Vertices,Indices,radius,color,mat9);
+
+        }
+    }else if(marker.type==visualization_msgs::Marker::CUBE_LIST){
+        Matrix4 mat7,mat8;
+        for(int idx=0;idx<marker.points.size();idx++)
+        {
+            /// Make simple translation matrix
+            mat7.identity();
+            mat7.translate(marker.points[idx].x*scaling_factor,
+                           marker.points[idx].y*scaling_factor,
+                           marker.points[idx].z*scaling_factor);
+            mat8 = mat6*mat7;
+            if(idx<marker.colors.size()){
+                /// If there are per-cube colors, use those
+                color.x = marker.colors[idx].r;
+                color.y = marker.colors[idx].g;
+                color.z = marker.colors[idx].b;
+            }
+            InitCube(Vertices,Indices,radius,color,mat8);
+        }
+    }else if(marker.type==visualization_msgs::Marker::SPHERE_LIST){
+        for(int idx=0;idx<marker.points.size();idx++)
+        {
+            /// Only bother getting the position, it's a sphere so who cares about orientation
+            Vector4 pos(marker.points[idx].x*scaling_factor,
+                        marker.points[idx].y*scaling_factor,
+                        marker.points[idx].z*scaling_factor,1);
+            Vector4 gpos = mat6*pos;
+            if(idx<marker.colors.size()){
+                /// If there are per-sphere colors, use those
+                color.x = marker.colors[idx].r;
+                color.y = marker.colors[idx].g;
+                color.z = marker.colors[idx].b;
+            }
+            /// scale.x should be diameter, so radius.x is radius
+            InitSphere(Vertices,Indices,radius.x,color,gpos);
+        }
+    }else if(marker.type==visualization_msgs::Marker::POINTS){
+        Matrix4 mat7,mat8;
+        for(int idx=0;idx<marker.points.size();idx++)
+        {
+            /// Make simple translation matrix
+            mat7.identity();
+            mat7.translate(marker.points[idx].x*scaling_factor,
+                           marker.points[idx].y*scaling_factor,
+                           marker.points[idx].z*scaling_factor);
+            mat8 = mat6*mat7;
+            if(idx<marker.colors.size()){
+                /// If there are per-point colors, use those
+                color.x = marker.colors[idx].r;
+                color.y = marker.colors[idx].g;
+                color.z = marker.colors[idx].b;
+            }
+            /// scale.x should be diameter, so radius.x is radius
+            /// We use a reduced number of facets, since in rviz this is just 1 quad facing the camera anyways.
+            /// We could use a cube too if we wanted.
+            InitCube(Vertices,Indices,Vector3(radius.x,radius.x,radius.x),color,mat8);
+        }
     }else if(marker.type==visualization_msgs::Marker::TEXT_VIEW_FACING){
-        float height=marker.scale.z*scaling_factor; /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
-        //pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,marker.text,height);
+        /// Implimented in the main loop, since it uses the textured pipeline
     }else if(marker.type==visualization_msgs::Marker::TRIANGLE_LIST){
         InitTriangles(Vertices,Indices,mat6,radius,marker.points,marker.colors,color);
     }
 
-    m_Entries[0].Init(Vertices,Indices);
-    initialized=true;
-    needs_update=false;
+    if(marker.type==visualization_msgs::Marker::MESH_RESOURCE){
+        /// This is a separate if, since we don't want to call Init for meshes, we want to call LoadMesh
+        /// \todo load_mesh and initialized are probably redundant, so they could probably be simplified.
+        /// \warning the mesh is only loaded once, so if the pose/orientation of a MESH_RESOURCE changes this won't detect that.
+        if(load_mesh){
+            if(LoadMesh(filename)){
+                initialized=true;
+                needs_update=false;
+            }else{
+                initialized=false;
+            }
+            /// I don't know why it would succeed on further attempts, so don't keep trying?
+            load_mesh=false;
+        }
+    }else{
+        m_Entries[0].Init(Vertices,Indices);
+        initialized=true;
+        needs_update=false;
+    }
 }
 
 void Mesh::InitCube(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Vector3 radius, Vector3 color, Matrix4 mat )
@@ -354,6 +525,55 @@ void Mesh::InitSphere(std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::
 
 
         }
+    }
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Create an arror marker
+// http://wiki.ros.org/rviz/DisplayTypes/Marker#Arrow_.28ARROW.3D0.29
+//-----------------------------------------------------------------------------
+void Mesh::InitArrow( std::vector<vr::RenderModel_Vertex_t_rgb> &Vertices, std::vector<u_int32_t> &Indices, Matrix4 mat, float radius_y,float radius_z, float length, Vector3 color, int num_facets )
+{
+    /// We have the head take up 23.2% of the length. This is what rviz does, and I've no clue why.
+    float shaft_len_pct = 0.768;
+    /// We have the shaft take up 50% of the radius. This is what rviz does, and it seems sensible.
+    float shaft_rad_pct = 0.5;
+    /// Arrow goes from 0 to length in X.
+    /// Y & Z allow different radii to allow ellipical arrows, even though that's silly.
+    Vector4 Top = mat * Vector4( length, 0, 0, 1 );
+    Vector4 Bot = mat * Vector4( 0, 0, 0, 1 );
+    std::vector<Vector4> Head_Outer_Ring;
+    std::vector<Vector4> Head_Inner_Ring;
+    std::vector<Vector4> Bot_Ring;
+    for(int ii=0;ii<num_facets;ii++){
+        float angle = ii*M_PI*2.0/num_facets;
+        Vector4 head_outer_vert = mat * Vector4( shaft_len_pct * length,               radius_y*sin(angle),               radius_z*cos(angle), 1 );
+        Head_Outer_Ring.push_back(head_outer_vert);
+        Vector4 head_inner_vert = mat * Vector4( shaft_len_pct * length, shaft_rad_pct*radius_y*sin(angle), shaft_rad_pct*radius_z*cos(angle), 1 );
+        Head_Inner_Ring.push_back(head_inner_vert);
+        Vector4 bot_vert        = mat * Vector4(                    0.0, shaft_rad_pct*radius_y*sin(angle), shaft_rad_pct*radius_z*cos(angle), 1 );
+        Bot_Ring.push_back(bot_vert);
+    }
+
+
+    for(int ii=0;ii<num_facets;ii++){
+        int idx1=ii;
+        int idx2=(ii+1)%num_facets;
+
+        //Pointy part of head
+        AddColorTri( Top,Head_Outer_Ring[idx1],Head_Outer_Ring[idx2],color,Vertices,Indices);
+
+        //Back of head
+        AddColorTri( Head_Inner_Ring[idx1],Head_Inner_Ring[idx2],Head_Outer_Ring[idx2],color,Vertices,Indices);
+        AddColorTri( Head_Outer_Ring[idx2],Head_Outer_Ring[idx1],Head_Inner_Ring[idx1],color,Vertices,Indices);
+
+        //Shaft
+        AddColorTri( Bot_Ring[idx1],Bot_Ring[idx2],Head_Inner_Ring[idx2],color,Vertices,Indices);
+        AddColorTri( Head_Inner_Ring[idx2],Head_Inner_Ring[idx1],Bot_Ring[idx1],color,Vertices,Indices);
+
+        //Bottom Pinwheel
+        AddColorTri( Bot,Bot_Ring[idx1],Bot_Ring[idx2],color,Vertices,Indices);
+
     }
 }
 
@@ -496,7 +716,6 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
             v.vNormal.v[1]=nm_trans.y;
             v.vNormal.v[2]=nm_trans.z;
 
-
             Vertices.push_back(v);
         }
         for (unsigned int i = 0 ; i < paiMesh->mNumFaces ; i++) {
@@ -562,7 +781,6 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
             v.vNormal.v[0]=nm_trans.x;
             v.vNormal.v[1]=nm_trans.y;
             v.vNormal.v[2]=nm_trans.z;
-
 
             Vertices.push_back(v);
         }

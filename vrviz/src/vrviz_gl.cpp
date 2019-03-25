@@ -87,6 +87,7 @@ bool show_grid=true;
 bool show_movement=true;
 float intensity_max=0.0;
 bool manual_image_copy = false;
+int overlay_alpha = 255;
 
 /// This is a flag that tells the VR code that we have new ROS data
 /// \todo This should be a semaphore or mutex
@@ -761,7 +762,7 @@ private:
                                        ros::Time(0), transform);
             }
             catch (tf::TransformException ex){
-              ROS_ERROR_THROTTLE(2,"%s",ex.what());
+              ROS_ERROR_THROTTLE(2,"[vrviz update_tf_cache] %s",ex.what());
               break;
               /// \todo We should probably remove this TF from the cache
             }
@@ -1037,7 +1038,7 @@ private:
                                    ros::Time(0), transform);
         }
         catch (tf::TransformException ex){
-          ROS_ERROR_THROTTLE(2,"%s",ex.what());
+          ROS_ERROR_THROTTLE(2,"[vrviz GetRobotMatrixPose] %s",ex.what());
           return Matrix4().identity();
         }
 
@@ -1163,90 +1164,6 @@ bool markers_equal(visualization_msgs::Marker marker1,visualization_msgs::Marker
     if(marker1.mesh_resource!=marker2.mesh_resource){return false;}
     if(marker1.mesh_use_embedded_materials!=marker2.mesh_use_embedded_materials){return false;}
     return true;
-}
-
-int find_or_add_marker(visualization_msgs::Marker marker){
-    if(!pVRVizApplication){
-        return -1;
-    }
-    for(int idx=0;idx<pVRVizApplication->robot_meshes.size();idx++){
-        if(pVRVizApplication->robot_meshes[idx]->id==marker.id && pVRVizApplication->robot_meshes[idx]->name==marker.ns){
-            /// We already have something with this namespace and ID.
-            /// Check if this marker is different (other than the timestamp)
-            if(!markers_equal(pVRVizApplication->robot_meshes[idx]->marker,marker)){
-                /// Copy over the new data, and raise  flag telling it to be updated
-                pVRVizApplication->robot_meshes[idx]->marker=marker;
-                pVRVizApplication->robot_meshes[idx]->needs_update=true;
-            }else{
-                /// Nothing has changed, but at least update the timestamp so we know it's updated lifetime
-                pVRVizApplication->robot_meshes[idx]->marker.header.stamp=marker.header.stamp;
-            }
-
-            return idx;
-        }
-    }
-
-    /// We didn't find it in our existing meshes, so make a new one
-    Mesh* myMesh = new Mesh;
-    myMesh->name=marker.ns;
-    myMesh->id=marker.id;
-    myMesh->frame_id=marker.header.frame_id;
-    Vector3 scale;
-    scale.x=1.0;
-    scale.y=1.0;
-    scale.z=1.0;
-    myMesh->scale=scale;
-
-    Matrix4 ident;
-    ident.identity();
-    myMesh->trans=ident;
-    myMesh->fallback_texture_filename=fallback_texture_filename;
-    myMesh->marker=marker;
-    myMesh->initialized=false;
-    myMesh->needs_update=true;
-    pVRVizApplication->robot_meshes.push_back(myMesh);
-    return -2;
-}
-
-/*!
- * \brief Callback for an array of Visualization Markers
- *
- * \warning This currently only works with text!
- *
- * \todo Allow standard RGB color
- * \todo Allow Marker::MESH_RESOURCE (should be easy, just call loadModel())
- * \todo Allow spheres, cubes, cylinders, lines, etc.
- *
- * \param msg
- */
-void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
-{
-    std::vector<float> texturedvertdataarray;
-
-    for(int ii=0;ii<msg->markers.size();ii++)
-    {
-        find_or_add_marker(msg->markers[ii]);
-        if(msg->markers[ii].type==visualization_msgs::Marker::TEXT_VIEW_FACING){
-
-            Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(msg->markers[ii].header.frame_id);
-
-            tf::StampedTransform trans;
-            trans.setOrigin(tf::Vector3(msg->markers[ii].pose.position.x,msg->markers[ii].pose.position.y,msg->markers[ii].pose.position.z));
-            trans.setRotation(tf::Quaternion(msg->markers[ii].pose.orientation.x,msg->markers[ii].pose.orientation.y,msg->markers[ii].pose.orientation.z,msg->markers[ii].pose.orientation.w));
-            Matrix4 matTransform4 = pVRVizApplication->VrTransform(trans);
-            //matTransform4.translate(pt.x,pt.y,pt.z);
-            Matrix4 mat4 = mat * matTransform4;
-
-            /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
-            float height=msg->markers[ii].scale.z*scaling_factor;
-
-            pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,msg->markers[ii].text,height);
-        }
-    }
-    /// Copy the data over to the shared data
-    /// \todo This should be protected with a mutex of sorts!
-    textured_tris_vertdataarray=texturedvertdataarray;
-    scene_update_needed=true;
 }
 
 void lockCallback(const std_msgs::Bool::ConstPtr& lock_in)
@@ -1412,7 +1329,7 @@ void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
                     /// Set the alpha to non-transparent
                     /// \todo Could make this a param, to allow people to overlay translucent images
                     idx=(raw_image_msg->height-1-y)*raw_image_msg->step+x*3;
-                    image_flipped.at<cv::Vec4b>(y,x)[3] = 255;
+                    image_flipped.at<cv::Vec4b>(y,x)[3] = overlay_alpha;
                 }
             }
             //ROS_INFO("Set up image. Cols=%d,Rows=%d",image_flipped.cols,image_flipped.rows);
@@ -1420,8 +1337,7 @@ void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
         }
         if(raw_image_msg->encoding==sensor_msgs::image_encodings::BGR8)
         {
-            /// Right now we only go from BGR -> RGBA
-            /// \todo RGB -> RGBA would be pretty easy to impliment, if anyone want it.
+            /// to go from BGR -> RGBA while also flipping
             for(y=0;y<raw_image_msg->height;y++)
             {
                 /// I tried a few different ways of looping through the data, and this is the fastest one I found.
@@ -1446,12 +1362,29 @@ void rawImageCallback(const sensor_msgs::Image::ConstPtr& raw_image_msg){
 //                    image_flipped.at<cv::Vec4b>(y,x)[0] = raw_image_msg->data[idx+2];
 //                    image_flipped.at<cv::Vec4b>(y,x)[1] = raw_image_msg->data[idx+1];
 //                    image_flipped.at<cv::Vec4b>(y,x)[2] = raw_image_msg->data[idx+0];
-//                    image_flipped.at<cv::Vec4b>(y,x)[3] = 255;
+//                    image_flipped.at<cv::Vec4b>(y,x)[3] = overlay_alpha;
+                }
+            }
+        }else if(raw_image_msg->encoding==sensor_msgs::image_encodings::RGB8)
+        {
+            /// to go from RGB -> RGBA while also flipping
+            for(y=0;y<raw_image_msg->height;y++)
+            {
+                uchar* pixel = image_flipped.ptr<uchar>(y);  // point to first color in row
+                const uchar* pixel2 = &(raw_image_msg->data[(raw_image_msg->height-1-y)*raw_image_msg->step]);  // point to first color in row
+                for(x=0;x<raw_image_msg->width;x++)
+                {
+                    /// Should take same time as bgr, which is ~30ms for 2x1080p
+                    *pixel++=*pixel2++;
+                    *pixel++=*pixel2++;
+                    *pixel=*pixel2++;
+                    pixel+=2;/// Add an extra to skip the Alpha
                 }
             }
         }else{
-            ROS_WARN("Manual image copy only works on BRG8 images, sorry!");
-            /// \todo Could fall back to the opencv copy
+            ROS_WARN("Manual image copy only works on BRG8 and RGB8 images, sorry!");
+            /// Try to fall back to the opencv copy
+            manual_image_copy = false;
         }
         /// tell the VR thread we have data
         received_image=true;
@@ -1507,14 +1440,9 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& image_msg,
     rawImageCallback(image_msg);
 }
 
-#ifndef USE_VULKAN
-/*!
- * \brief load a mesh model with assimp
- * \param mod_url
- * \return
- */
-bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
+bool resolveURI(std::string &mod_url)
 {
+
     if (mod_url.find("package://") == 0)
     {
         mod_url.erase(0, strlen("package://"));
@@ -1522,6 +1450,7 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
         if (pos == std::string::npos)
         {
             ROS_ERROR("Could not parse package:// format into file:// format");
+            return false;
         }
 
         std::string package = mod_url.substr(0, pos);
@@ -1531,19 +1460,20 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
         if (package_path.empty())
         {
             ROS_ERROR("Package [%s] does not exist",package.c_str());
+            return false;
         }
 
         mod_url = package_path + mod_url;
     }
 
-    Mesh* myMesh = new Mesh;
-    myMesh->name=name;
-    myMesh->frame_id=name;
-    myMesh->scale=scale;
-    myMesh->trans=trans;
-    myMesh->fallback_texture_filename=fallback_texture_filename;
+    return true;
+}
 
+float modelScaleAndUp(std::string mod_url,bool &Z_UP)
+{
     bool verbose=false;
+    Z_UP=false;
+    float meter = 1.0;
 
     /// Assimp doesn't load the 'units' attribute of Collada files
     /// https://github.com/assimp/assimp/issues/165
@@ -1562,7 +1492,7 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
             std::string up_axis_str=asset.get<std::string>("up_axis");
             if(up_axis_str=="Z_UP"){
                 ROS_INFO_COND(verbose,"Found Z_UP attribute, compensating");
-                myMesh->Z_UP=true;
+                Z_UP=true;
             }else if(up_axis_str=="Y_UP"){
                 ROS_INFO_COND(verbose,"Found Y_UP attribute, proceeding as normal");
             }else{
@@ -1573,24 +1503,59 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
         }
 
         if( asset.count("unit") != 0 ){
-            float meter=asset.get<float>("unit.<xmlattr>.meter");
+            meter=asset.get<float>("unit.<xmlattr>.meter");
 //            myMesh->scale.x*=meter;
 //            myMesh->scale.y*=meter;
 //            myMesh->scale.z*=meter;
-            ROS_INFO_COND(verbose,"Found units, 1 unit=%f meters.  Sx=%f,Sy=%f,Sz=%f",meter,myMesh->scale.x,myMesh->scale.y,myMesh->scale.z);
+            ROS_INFO_COND(verbose,"Found units, 1 unit=%f meters",meter);
         }else{
             //ROS_WARN("no units found");
         }
     }
+    return meter;
+}
 
+#ifndef USE_VULKAN
+/*!
+ * \brief load a mesh model with assimp
+ * \param mod_url
+ * \return
+ */
+bool loadModel(std::string mod_url,std::string frame_id,Matrix4 trans,Vector3 scale,int id=0,std::string name="",bool initialize=true)
+{
+    resolveURI(mod_url);
 
-    if(myMesh->LoadMesh(mod_url)){
-        ROS_INFO("Loaded %s's mesh:%s",name.c_str(),mod_url.c_str());
-        myMesh->initialized=true;
-        myMesh->needs_update=false;
+    Mesh* myMesh = new Mesh;
+    if(name.length()>0){
+        myMesh->name=name;
+    }else{
+        name=frame_id;
+        myMesh->name=frame_id;
+    }
+    myMesh->frame_id=frame_id;
+    myMesh->id=id;
+    myMesh->scale=scale;
+    myMesh->trans=trans;
+    myMesh->fallback_texture_filename=fallback_texture_filename;
+
+    modelScaleAndUp(mod_url,myMesh->Z_UP);
+
+    ROS_INFO("Loading %s's mesh:%s frame_id=%s",name.c_str(),mod_url.c_str(),myMesh->frame_id.c_str());
+    if(!initialize){
+        myMesh->load_mesh = true;
+        myMesh->filename = mod_url;
+        myMesh->initialized=initialize;
+        myMesh->needs_update=!initialize;
         pVRVizApplication->robot_meshes.push_back(myMesh);
     }else{
-        ROS_ERROR("Could not load mesh file %s",mod_url.c_str());
+        if(myMesh->LoadMesh(mod_url))
+        {
+            myMesh->initialized=initialize;
+            myMesh->needs_update=!initialize;
+            pVRVizApplication->robot_meshes.push_back(myMesh);
+        }else{
+            ROS_ERROR("Could not load mesh file %s",mod_url.c_str());
+        }
     }
 }
 
@@ -1598,8 +1563,6 @@ bool loadModel(std::string mod_url,std::string name,Matrix4 trans,Vector3 scale)
  * \brief load's a robot model from the parameter server
  *
  * We scale the model when we load it, since for now scale is only set at startup
- *
- * \todo Add support for geometric primatives
  *
  * \param vr_scale
  * \return success
@@ -1728,6 +1691,111 @@ bool loadRobot(float vr_scale=1.f){
 }
 #endif
 
+
+int find_or_add_marker(visualization_msgs::Marker marker){
+    if(!pVRVizApplication){
+        return -1;
+    }
+    for(int idx=0;idx<pVRVizApplication->robot_meshes.size();idx++){
+        if(pVRVizApplication->robot_meshes[idx]->id==marker.id && pVRVizApplication->robot_meshes[idx]->name==marker.ns){
+            /// We already have something with this namespace and ID.
+            /// Check if this marker is different (other than the timestamp)
+            if(!markers_equal(pVRVizApplication->robot_meshes[idx]->marker,marker)){
+                /// Copy over the new data, and raise  flag telling it to be updated
+                pVRVizApplication->robot_meshes[idx]->marker=marker;
+                pVRVizApplication->robot_meshes[idx]->needs_update=true;
+            }else{
+                /// Nothing has changed, but at least update the timestamp so we know it's updated lifetime
+                pVRVizApplication->robot_meshes[idx]->marker.header.stamp=marker.header.stamp;
+            }
+
+            return idx;
+        }
+    }
+
+    /// We didn't find it in our existing meshes, so make a new one
+    Mesh* myMesh = new Mesh;
+    myMesh->name=marker.ns;
+    myMesh->id=marker.id;
+    myMesh->frame_id=marker.header.frame_id;
+    Vector3 scale;
+    scale.x=1.0;
+    scale.y=1.0;
+    scale.z=1.0;
+    myMesh->scale=scale;
+
+    Matrix4 ident;
+    ident.identity();
+    myMesh->trans=ident;
+    myMesh->fallback_texture_filename=fallback_texture_filename;
+    myMesh->marker=marker;
+    myMesh->initialized=false;
+    myMesh->needs_update=true;
+
+    if(marker.type==visualization_msgs::Marker::MESH_RESOURCE){
+        std::stringstream ss;
+        ss << marker.ns;
+        ss << marker.id;
+        /// \todo this needs to come from the marker pose
+        Matrix4 trans;
+        trans.translate(marker.pose.position.x*scaling_factor,
+                        marker.pose.position.y*scaling_factor,
+                        marker.pose.position.z*scaling_factor);
+        Matrix4 rot = myMesh->quat2mat(marker.pose.orientation);
+        Matrix4 full = trans*rot;
+        Vector3 scale(scaling_factor,scaling_factor,scaling_factor);
+        /// This doesn't work because Mesh::MeshEntry::Init can't be called from the callback thread.
+        /// \todo we need a way to send the marker to the other thread but tell it to load when it's ready.
+        loadModel(marker.mesh_resource,marker.header.frame_id,full,scale,marker.id,marker.ns,false);
+    }else{
+
+        pVRVizApplication->robot_meshes.push_back(myMesh);
+    }
+    return -2;
+}
+
+/*!
+ * \brief Callback for an array of Visualization Markers
+ *
+ * \warning This currently only works with text!
+ *
+ * \todo Allow standard RGB color
+ * \todo Allow Marker::MESH_RESOURCE (should be easy, just call loadModel())
+ * \todo Allow spheres, cubes, cylinders, lines, etc.
+ *
+ * \param msg
+ */
+void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
+{
+    std::vector<float> texturedvertdataarray;
+
+    for(int ii=0;ii<msg->markers.size();ii++)
+    {
+        find_or_add_marker(msg->markers[ii]);
+        if(msg->markers[ii].type==visualization_msgs::Marker::TEXT_VIEW_FACING){
+
+            ROS_ERROR_COND(msg->markers[ii].header.frame_id.length()==0, "Empty string???");
+            Matrix4 mat = pVRVizApplication->GetRobotMatrixPose(msg->markers[ii].header.frame_id);
+
+            tf::StampedTransform trans;
+            trans.setOrigin(tf::Vector3(msg->markers[ii].pose.position.x,msg->markers[ii].pose.position.y,msg->markers[ii].pose.position.z));
+            trans.setRotation(tf::Quaternion(msg->markers[ii].pose.orientation.x,msg->markers[ii].pose.orientation.y,msg->markers[ii].pose.orientation.z,msg->markers[ii].pose.orientation.w));
+            Matrix4 matTransform4 = pVRVizApplication->VrTransform(trans);
+            //matTransform4.translate(pt.x,pt.y,pt.z);
+            Matrix4 mat4 = mat * matTransform4;
+
+            /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
+            float height=msg->markers[ii].scale.z*scaling_factor;
+
+            pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,msg->markers[ii].text,height);
+        }
+    }
+    /// Copy the data over to the shared data
+    /// \todo This should be protected with a mutex of sorts!
+    textured_tris_vertdataarray=texturedvertdataarray;
+    scene_update_needed=true;
+}
+
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
@@ -1794,6 +1862,7 @@ int main(int argc, char *argv[])
     pnh->getParam("frame_prefix", frame_prefix);
     pnh->getParam("intensity_max", intensity_max);
     pnh->getParam("manual_image_copy", manual_image_copy);
+    pnh->getParam("overlay_alpha", overlay_alpha);
 
     /// Default to 720p companion window
     int window_width=1280;
