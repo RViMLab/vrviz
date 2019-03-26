@@ -61,6 +61,7 @@ ros::NodeHandle* nh;
 ros::NodeHandle* pnh;
 ros::Publisher controller_pub[3];
 ros::Publisher twist_pub;
+ros::Publisher navgoal_pub;
 tf::TransformBroadcaster* broadcaster;
 tf::TransformListener* listener;
 image_transport::ImageTransport* image_transporter;
@@ -88,6 +89,20 @@ bool show_movement=true;
 float intensity_max=0.0;
 bool manual_image_copy = false;
 int overlay_alpha = 255;
+bool teleport_mode=false;
+float teleport_throw_speed=10.0;///!< m/s
+float teleport_gravity=9.81;///!< m/s^2, 9.81 for Earth, 3.7 for Mars
+float teleport_dt=0.005;///!< seconds, smaller is more smooth, but slower
+float teleport_r=0.0;///!< 0->1
+float teleport_g=1.0;///!< 0->1
+float teleport_b=1.0;///!< 0->1
+bool navgoal_mode=false;
+float navgoal_throw_speed=10.0;///!< m/s
+float navgoal_gravity=9.81;///!< m/s^2, 9.81 for Earth, 3.7 for Mars
+float navgoal_dt=0.005;///!< seconds, smaller is more smooth, but slower
+float navgoal_r=1.0;///!< 0->1
+float navgoal_g=0.0;///!< 0->1
+float navgoal_b=1.0;///!< 0->1
 
 /// This is a flag that tells the VR code that we have new ROS data
 /// \todo This should be a semaphore or mutex
@@ -134,6 +149,10 @@ private:
     Matrix4 move_current_trans_mat;
     Matrix4 move_trans_mat;
     Matrix4 move_trans_mat_old;
+    Vector3 teleport_target;
+    Vector3 teleport_start;
+    Vector3 navgoal_target;
+    Vector3 navgoal_start;
     std::vector<tf_obj> tf_cache;
 
    public:
@@ -261,13 +280,23 @@ private:
         }
         if(pressed_id!=-1 && show_movement){
             /// Show the frames we are using to calculate twist commands
-            add_frame_to_scene(previous_trans_mat,vertdataarray,0.05/scaling_factor);
-            add_frame_to_scene(current_trans_mat ,vertdataarray,0.07/scaling_factor);
+            if(navgoal_mode)
+            {
+                add_projectile_to_scene(current_trans_mat,vertdataarray,navgoal_start,navgoal_target,navgoal_throw_speed,Vector3(navgoal_r,navgoal_g,navgoal_b),navgoal_dt,navgoal_gravity);
+            }else{
+                add_frame_to_scene(previous_trans_mat,vertdataarray,0.05/scaling_factor);
+                add_frame_to_scene(current_trans_mat ,vertdataarray,0.07/scaling_factor);
+            }
         }
         if(move_id!=-1 && show_movement){
             /// Show the frames we are using to move the scene
-            add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05/scaling_factor);
-            add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07/scaling_factor);
+            if(teleport_mode)
+            {
+                add_projectile_to_scene(move_current_trans_mat,vertdataarray,teleport_start,teleport_target,teleport_throw_speed,Vector3(teleport_r,teleport_g,teleport_b),teleport_dt,teleport_gravity);
+            }else{
+                add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05/scaling_factor);
+                add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07/scaling_factor);
+            }
         }
         if(show_grid){
             add_grid_to_scene(vertdataarray);
@@ -647,6 +676,112 @@ private:
         vertdata.push_back(color.z);
     }
 
+    void add_projectile_to_scene( Matrix4 mat,
+                                  std::vector<float> &vertdataarray,
+                                  Vector3 &start_point,
+                                  Vector3 &end_point,
+                                  float v0=10.0,
+                                  Vector3 color=Vector3( 0, 1, 1 ),
+                                  float dt=0.01,
+                                  float g=9.81,
+                                  Vector4 direction=Vector4( 0, 0, -1, 0 ))
+    {
+        /// The direction we throw, relative to the ground.
+        /// In this case we want -Z of the controller, so we take -Z
+        /// as a free vector and multiply it by the matrix of the controller.
+        Vector4 dir = mat * direction;
+
+        /// Assuming gravity is in -y
+        /// \warning This assumes dir is a unit vector
+        /// Y velocity is the vertical component
+        float v_y=v0*dir.y;
+        /// Radial velocity is the horizontal component
+        float horiz_mag = std::sqrt(dir.x*dir.x+dir.z*dir.z);
+        float v_r=v0*horiz_mag;
+        /// Split radial into two directions
+        /// \note This may be wrong, but I think since sqrt(dir.x*dir.x+dir.z*dir.z) is not 1 we have to normalize the 2D vector, by dividing by the magnitude.
+        /// This could be done with trig and it would make more sense, but since we start with the 3D unit vector this way is much cheaper.
+        float v_z=v_r*dir.z/horiz_mag;
+        float v_x=v_r*dir.x/horiz_mag;
+        float x=mat[12];
+        float y=mat[13];
+        float z=mat[14];
+        /// Store the start point, since when we actually teleport that's what we warp to
+        /// \todo The user probably expects this to be closer to the HMD location than the controller position, but this is easier
+        start_point.x = x;
+        start_point.y = 0.0;
+        start_point.z = z;
+        /// Since we are accelerating in -y we stop when we pass y=0
+        /// \note with a huge velocity, e.g. 10^20 m/s this would take ~12,000 years long to return. Maybe a timeout or limit to velocity would be good?
+        while ( y>0.0 )
+        {
+
+            vertdataarray.push_back( x );
+            vertdataarray.push_back( y );
+            vertdataarray.push_back( z );
+
+            vertdataarray.push_back( color.x );
+            vertdataarray.push_back( color.y );
+            vertdataarray.push_back( color.z );
+
+            v_y-=dt*g;/// Gravity pulling us back to earth
+            x+=v_x*dt;
+            y+=v_y*dt;
+            z+=v_z*dt;
+
+            vertdataarray.push_back( x );
+            vertdataarray.push_back( y );
+            vertdataarray.push_back( z );
+
+            vertdataarray.push_back( color.x );
+            vertdataarray.push_back( color.y );
+            vertdataarray.push_back( color.z );
+
+            m_uiControllerVertcount += 2;
+        }
+        /// We may have overshot a bit, so set y back to 0.0;
+        y = 0.0;
+
+        /// The end of the trajectory is used as the target of the teleport.
+        end_point.x = x;
+        end_point.y = y;
+        end_point.z = z;
+
+        /// Also draw a circle around the target point
+        float dr=0.05;
+        /// Start one point negative, to complete the circle at the end
+        float theta=-dr;
+        /// This radius looks good to me, but should maybe be a param
+        float radius=0.5;
+        /// New x & y are circle around ending x & y
+        float nx = x+radius*cos(theta);
+        float nz = z+radius*sin(theta);
+        /// We use the same color, so people know that they are showing the same thing
+        for(;theta<2*M_PI;theta+=dr)
+        {
+
+            vertdataarray.push_back( nx );
+            vertdataarray.push_back( y );
+            vertdataarray.push_back( nz );
+
+            vertdataarray.push_back( color.x );
+            vertdataarray.push_back( color.y );
+            vertdataarray.push_back( color.z );
+
+            nx = x+radius*cos(theta);
+            nz = z+radius*sin(theta);
+
+            vertdataarray.push_back( nx );
+            vertdataarray.push_back( y );
+            vertdataarray.push_back( nz );
+
+            vertdataarray.push_back( color.x );
+            vertdataarray.push_back( color.y );
+            vertdataarray.push_back( color.z );
+
+        }
+    }
+
     void add_frame_to_scene( Matrix4 mat, std::vector<float> &vertdataarray, float radius, int num_dof=3)
     {
 
@@ -721,7 +856,6 @@ private:
         }
     }
 
-
     /*!
      * \brief add_point_to_scene
      * \param mat         Transform of the text globally
@@ -741,6 +875,28 @@ private:
         vertdata.push_back( colour.x );
         vertdata.push_back( colour.y );
         vertdata.push_back( colour.z );
+    }
+
+
+    void publish_navgoal(void)
+    {
+        geometry_msgs::PoseStamped navgoal_msg;
+        /// Use the Z-up version so that the nav stack doesn't complain about our quaternion relative to a Y-up frame
+        navgoal_msg.header.frame_id = intermediate_frame+"_zup";
+        navgoal_msg.header.stamp = ros::Time::now();
+        navgoal_msg.pose.position.x = navgoal_target.x/scaling_factor;
+        navgoal_msg.pose.position.y =-navgoal_target.z/scaling_factor;
+        navgoal_msg.pose.position.z =-navgoal_target.y/scaling_factor;
+        float theta = std::atan2(navgoal_target.x-navgoal_start.x,navgoal_target.z-navgoal_start.z);
+        theta-=M_PI_2;
+        if(theta<0.0){
+            theta+=2*M_PI;
+        }
+        navgoal_msg.pose.orientation.x = 0;
+        navgoal_msg.pose.orientation.y = 0;
+        navgoal_msg.pose.orientation.z = sin(theta/2.0);
+        navgoal_msg.pose.orientation.w = cos(theta/2.0);
+        navgoal_pub.publish(navgoal_msg);
     }
 
     /*!
@@ -783,7 +939,15 @@ private:
 
         broadcaster->sendTransform(tf::StampedTransform(TfTransform(move_trans_mat),ros::Time::now(), base_frame, intermediate_frame));
 
+        if(navgoal_mode)
+        {
+            /// For some reason the nav stack wants the quaternion to be a rotation about Z, even if the frame we send the goal in is rotated.
+            /// Therefore we make a Z-up version of intermediate_frame, then we can send a goal relative to that and the quaternion will be right.
+            broadcaster->sendTransform(tf::StampedTransform(tf::Transform(tf::Quaternion(tf::Vector3(1,0,0),-M_PI_2)), ros::Time::now(), intermediate_frame, intermediate_frame + "_zup" ));
+        }
+
         geometry_msgs::Twist twist_msg;
+        geometry_msgs::PoseStamped navgoal_msg;
 
         vr::VRInputValueHandle_t ulTwistCommand;
         if ( GetDigitalActionState( m_actionTwistCommand, &ulTwistCommand ) && !move_lock )
@@ -802,20 +966,24 @@ private:
                         //ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
                         /// We already knew they pressed this trigger
                         /// So check to see how much has changed since then.
-                        /// \note we are implicitly setting Kp=1.0
-                        tf::Transform trans = previous_trans.inverseTimes(current_trans);
-                        tf::Matrix3x3 r(trans.getRotation());
-                        double roll,pitch,yaw;
-                        r.getEulerYPR(yaw,pitch,roll);
-                        twist_msg.angular.x=roll;
-                        twist_msg.angular.z=pitch;
-                        twist_msg.angular.y=yaw;
-                        twist_msg.linear.x=trans.getOrigin().getX();
-                        twist_msg.linear.y=trans.getOrigin().getY();
-                        twist_msg.linear.z=trans.getOrigin().getZ();
-
-                        previous_trans_mat = VrTransform(tf::StampedTransform(previous_trans,ros::Time::now(),"foo","bar"));
-                        current_trans_mat  = VrTransform(tf::StampedTransform(current_trans,ros::Time::now(),"foo","bar"));
+                        if(navgoal_mode)
+                        {
+                            current_trans_mat = mat;
+                        }else{
+                            /// \note we are implicitly setting Kp=1.0
+                            tf::Transform trans = previous_trans.inverseTimes(current_trans);
+                            tf::Matrix3x3 r(trans.getRotation());
+                            double roll,pitch,yaw;
+                            r.getEulerYPR(yaw,pitch,roll);
+                            twist_msg.angular.x=roll;
+                            twist_msg.angular.z=pitch;
+                            twist_msg.angular.y=yaw;
+                            twist_msg.linear.x=trans.getOrigin().getX();
+                            twist_msg.linear.y=trans.getOrigin().getY();
+                            twist_msg.linear.z=trans.getOrigin().getZ();
+                            previous_trans_mat = VrTransform(tf::StampedTransform(previous_trans,ros::Time::now(),"foo","bar"));
+                            current_trans_mat  = VrTransform(tf::StampedTransform(current_trans,ros::Time::now(),"foo","bar"));
+                        }
                     }else if(pressed_id==-1){
                         /// This is the first we have heard about this
                         pressed_id=controller_id;
@@ -829,17 +997,30 @@ private:
                         /// We thought they pressed this trigger, but it appears not anymore
                         //ROS_WARN("Released controller %d",controller_id);
                         pressed_id=-1;
-                        move_trans_mat_old = move_trans_mat;
+                        if(navgoal_mode)
+                        {
+                            publish_navgoal();
+                        }else{
+                            move_trans_mat_old = move_trans_mat;
+                        }
                     }
                 }
 
             }
         }else if(pressed_id!=-1){
-            ROS_WARN("Released all controllers");
+            //ROS_WARN("Released all controllers");
             pressed_id=-1;
-            move_trans_mat_old = move_trans_mat;
+            if(navgoal_mode)
+            {
+                publish_navgoal();
+            }else{
+                move_trans_mat_old = move_trans_mat;
+            }
         }
-        twist_pub.publish(twist_msg);
+        if(!navgoal_mode)
+        {
+            twist_pub.publish(twist_msg);
+        }
 
 
         vr::VRInputValueHandle_t ulMoveWorld;
@@ -855,33 +1036,52 @@ private:
 
                 if(ulMoveWorld == m_rHand[eHand].m_source){
                     if(move_id==controller_id){
-                        ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
                         move_current_trans_mat  = mat;
-                        Matrix4 move_current_trans_mat_inverse = move_current_trans_mat;
-                        move_current_trans_mat_inverse.invert();
-                        move_trans_mat = move_trans_mat_old * (move_previous_trans_mat * move_current_trans_mat_inverse);
+                        if(teleport_mode){
+                            /// Do nothing
+                        }else{
+                            //ROS_WARN_THROTTLE(2.0,"Still pressing controller %d",controller_id);
+                            Matrix4 move_current_trans_mat_inverse = move_current_trans_mat;
+                            move_current_trans_mat_inverse.invert();
+                            move_trans_mat = move_trans_mat_old * (move_previous_trans_mat * move_current_trans_mat_inverse);
+                        }
                     }else if(move_id==-1){
                         /// This is the first we have heard about this
                         move_id=controller_id;
                         move_previous_trans_mat=mat;
-                        ROS_WARN("Pressed down on controller %d",controller_id);
+                        //ROS_WARN("Pressed down on controller %d",controller_id);
                     }else{
                         ROS_WARN_THROTTLE(2.0,"Please don't press both triggers simultaneously...");
                     }
                 }else{
                     if(move_id==controller_id){
                         /// We thought they pressed this trigger, but it appears not anymore
-                        ROS_WARN("Released controller %d",controller_id);
+                        //ROS_WARN("Released controller %d",controller_id);
                         move_id=-1;
-                        move_trans_mat_old = move_trans_mat;
+
+                        if(teleport_mode)
+                        {
+                            /// \todo We should move to where the person actually is, not the origin
+                            move_trans_mat.translate(teleport_target.x-teleport_start.x,teleport_target.y-teleport_start.y,teleport_target.z-teleport_start.z);
+                            //move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
+                        }else{
+                            move_trans_mat_old = move_trans_mat;
+                        }
                     }
                 }
 
             }
         }else if(move_id!=-1){
-            ROS_WARN("Released all controllers");
+            //ROS_WARN("Released all controllers");
             move_id=-1;
-            move_trans_mat_old = move_trans_mat;
+            if(teleport_mode)
+            {
+                /// \todo We should move to where the person actually is, not the origin
+                move_trans_mat.translate(teleport_target.x-teleport_start.x,teleport_target.y-teleport_start.y,teleport_target.z-teleport_start.z);
+                //move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
+            }else{
+                move_trans_mat_old = move_trans_mat;
+            }
         }
 
 
@@ -1828,6 +2028,7 @@ int main(int argc, char *argv[])
     controller_pub[1] = nh->advertise<sensor_msgs::Joy>("/controller_left",1);
     controller_pub[2] = nh->advertise<sensor_msgs::Joy>("/controller_right",1);
     twist_pub = nh->advertise<geometry_msgs::Twist>("/controller_twist",1);
+    navgoal_pub = nh->advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal",1);
     /// The texture file is used for texturing some things
     vrviz_include_path = ros::package::getPath("vrviz")+"/include/vrviz/";
 
@@ -1851,6 +2052,24 @@ int main(int argc, char *argv[])
     pnh->getParam("show_grid", show_grid);
     pnh->getParam("show_movement", show_movement);
     pnh->getParam("sbs_image", sbs_image);
+
+    /// Teleport params
+    pnh->getParam("teleport_mode", teleport_mode);
+    pnh->getParam("teleport_throw_speed", teleport_throw_speed);
+    pnh->getParam("teleport_gravity", teleport_gravity);
+    pnh->getParam("teleport_dt", teleport_dt);
+    pnh->getParam("teleport_r", teleport_r);
+    pnh->getParam("teleport_g", teleport_g);
+    pnh->getParam("teleport_b", teleport_b);
+
+    /// Teleport params
+    pnh->getParam("navgoal_mode", navgoal_mode);
+    pnh->getParam("navgoal_throw_speed", navgoal_throw_speed);
+    pnh->getParam("navgoal_gravity", navgoal_gravity);
+    pnh->getParam("navgoal_dt", navgoal_dt);
+    pnh->getParam("navgoal_r", navgoal_r);
+    pnh->getParam("navgoal_g", navgoal_g);
+    pnh->getParam("navgoal_b", navgoal_b);
 
     /// These params are probably not going to be changed, but are here just in case
     pnh->getParam("vrviz_include_path", vrviz_include_path);

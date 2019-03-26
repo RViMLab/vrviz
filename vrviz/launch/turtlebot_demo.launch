@@ -1,6 +1,12 @@
 
 <launch>
+    <!-- Silly shapes shows test visualization_markers -->
     <arg name="silly_shapes" default="false"/>
+    <!-- Navigation loads SLAM for the turtlebot, you can use the trigger to tell it to drive to a location. -->
+    <arg name="navigation" default="false"/>
+
+    <param name="/vrviz/teleport_mode" value="true"/>
+    <param name="/vrviz/navgoal_mode" value="$(arg navigation)"/>
 
     <include file="$(find vrviz)/launch/vrviz.launch">
         <arg name="cloud_remap" value="/camera/depth/points"/>
@@ -14,8 +20,6 @@
         <arg name="hud_dist" value="0.5"/>
         <arg name="manual_image_copy" value="true"/>
     </include>
-    <node pkg="tf" type="static_transform_publisher" name="coordinate_vrviz_base_base"
-        args="0 0 0 0 0 1.57079632679 odom vrviz_base  10" />
 
     <include file="$(find turtlebot_gazebo)/launch/turtlebot_world.launch">
       <arg name="gui" value="false"/>
@@ -25,5 +29,19 @@
         <param name="silly_shapes" value="$(arg silly_shapes)" />
     </node>
 
+    <!-- GROUP - SIMULATION -->
+    <group if="$(arg navigation)">
+        <include file="$(find turtlebot_gazebo)/launch/amcl_demo.launch"/>
+        <!--include file="$(find turtlebot_rviz_launchers)/launch/view_navigation.launch"/-->
+
+        <!-- Connect to map frame -->
+        <node pkg="tf" type="static_transform_publisher" name="coordinate_vrviz_base_base"
+            args="0 0 0 0 0 1.57079632679 map vrviz_base  10" />
+    </group>
+    <group unless="$(arg navigation)">
+        <!-- Connect to odom frame since there is no map -->
+        <node pkg="tf" type="static_transform_publisher" name="coordinate_vrviz_base_base"
+            args="0 0 0 0 0 1.57079632679 odom vrviz_base  10" />
+    </group>
 	
 </launch>
