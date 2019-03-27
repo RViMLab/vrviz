@@ -732,7 +732,8 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
         m_Entries[Index].Init(Vertices, Indices);
 
     }else{
-        const aiColor4D Zero4D(0.0f, 0.0f, 0.0f, 0.0f);
+        /// Default color of light grey
+        const aiColor4D Zero4D(0.8f, 0.8f, 0.8f, 1.0f);
         std::vector<vr::RenderModel_Vertex_t_rgb> Vertices;
 
         for (unsigned int i = 0 ; i < paiMesh->mNumVertices ; i++) {

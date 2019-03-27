@@ -271,7 +271,7 @@ private:
     void RenderControllerAxes()
     {
         std::vector<float> vertdataarray;
-        //m_uiControllerVertcount=0;
+        m_uiControllerVertcount=0;
         if(show_tf){
             /// Show the 3 axis of every frame in our cache
             for(int ii=0;ii<tf_cache.size();ii++){
@@ -577,10 +577,10 @@ private:
         glBindBuffer( GL_ARRAY_BUFFER, m_glPointCloudVertBuffer );
 
         // set vertex data if we have some
+        m_uiPointCloudVertcount = color_points_vertdataarray.size()/6;
         if( color_points_vertdataarray.size() > 0 )
         {
             //$ TODO: Use glBufferSubData for this...
-            m_uiPointCloudVertcount = color_points_vertdataarray.size()/6;
             glBufferData( GL_ARRAY_BUFFER, sizeof(float) * color_points_vertdataarray.size(), &color_points_vertdataarray[0], GL_STREAM_DRAW );
         }
 
