@@ -779,6 +779,7 @@ private:
             vertdataarray.push_back( color.y );
             vertdataarray.push_back( color.z );
 
+            m_uiControllerVertcount += 2;
         }
     }
 
