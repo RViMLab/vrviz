@@ -130,6 +130,7 @@ public:
 
     std::vector<MeshEntry> m_Entries;
     std::vector<Texture*> m_Textures;
+    std::vector<aiColor4D> m_Colors;
 };
 
 
