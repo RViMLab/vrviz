@@ -154,6 +154,7 @@ bool Mesh::InitFromScene(const aiScene* pScene, const std::string& Filename)
 {  
     m_Entries.resize(pScene->mNumMeshes);
     m_Textures.resize(pScene->mNumMaterials);
+    m_Colors.resize(pScene->mNumMaterials);
 
     InitMaterials(pScene, Filename);
 
@@ -733,7 +734,7 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
 
     }else{
         /// Default color of light grey
-        const aiColor4D Zero4D(0.8f, 0.8f, 0.8f, 1.0f);
+        aiColor4D baseColor = m_Colors[paiMesh->mMaterialIndex];
         std::vector<vr::RenderModel_Vertex_t_rgb> Vertices;
 
         for (unsigned int i = 0 ; i < paiMesh->mNumVertices ; i++) {
@@ -771,7 +772,7 @@ void Mesh::InitMesh(unsigned int Index, const aiMesh* paiMesh, const aiNode* nod
             Vector4 nm_trans = trans * nm;
 
 
-            const aiColor4D* pVertColor = paiMesh->HasVertexColors(0) ? &(paiMesh->mColors[0][i]) : &Zero4D;
+            const aiColor4D* pVertColor = paiMesh->HasVertexColors(0) ? &(paiMesh->mColors[0][i]) : &baseColor;
             vr::RenderModel_Vertex_t_rgb v;
             v.vPosition.v[0]=pt_trans.x;
             v.vPosition.v[1]=pt_trans.y;
@@ -819,12 +820,23 @@ bool Mesh::InitMaterials(const aiScene* pScene, const std::string& Filename)
     }
 
     bool Ret = true;
+    const aiColor4D Zero4D(0.0f, 0.0f, 0.0f, 0.0f);
 
     // Initialize the materials
     for (unsigned int i = 0 ; i < pScene->mNumMaterials ; i++) {
         const aiMaterial* pMaterial = pScene->mMaterials[i];
 
         m_Textures[i] = NULL;
+
+        if (AI_SUCCESS == aiGetMaterialColor(pMaterial, AI_MATKEY_COLOR_DIFFUSE, &m_Colors[i]))
+        {
+            /// Do nothing?
+        }else{
+            /// Default to black. Hopefully there are vert colors, otherwise this mesh is going to be hard to see...
+            m_Colors[i] = Zero4D;
+        }
+
+
 
         if (pMaterial->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
             aiString Path;
