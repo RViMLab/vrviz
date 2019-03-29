@@ -86,6 +86,8 @@ bool show_tf=false;
 bool load_robot=false;
 bool show_grid=true;
 bool show_movement=true;
+bool axis_colored_pc=false;
+bool use_hsv=true;
 float intensity_max=0.0;
 bool manual_image_copy = false;
 int overlay_alpha = 255;
@@ -1403,7 +1405,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
 
     std::vector<float> vertdataarray;
 
-    if(rgb) /// We prefer color channel info, if it has it
+    if(rgb && !axis_colored_pc) /// We prefer color channel info, if it has it
     {
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_with_nan(new pcl::PointCloud<pcl::PointXYZRGB>);
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -1431,7 +1433,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
             //ROS_INFO("Processed Point %f,%f,%f",pt.x,pt.y,pt.z);
         }
     }
-    else if(intensity) /// Intensity can be mapped to color
+    else if(intensity && !axis_colored_pc) /// Intensity can be mapped to color
     {
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_with_nan(new pcl::PointCloud<pcl::PointXYZI>);
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
@@ -1477,6 +1479,18 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
         /// Avoid NAN points, since they would not render well
         pcl::removeNaNFromPointCloud(*cloud_with_nan,*cloud, indices);
 
+        float z_max = 0.0;
+        float z_min = 0.0;
+        for(size_t i = 0; i<cloud->points.size(); i++)
+        {
+            float z = cloud->points[i].z*scaling_factor;
+            if(z > z_max){
+                z_max = z;
+            }
+            if(z < z_min){
+                z_min = z;
+            }
+        }
         for(size_t i = 0; i<cloud->points.size(); i++)
         {
             Vector4 pt;
@@ -1486,11 +1500,55 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
             pt.z=cloud->points[i].z*scaling_factor;
             pt.w=1.0;
 
-            /// The color is just solid red. This could be a param.
             Vector3 color;
-            color.x = 1.0;
-            color.y = 0.0;
-            color.z = 0.0;
+            if(axis_colored_pc){
+                float val = (pt.z-z_min)/(z_max-z_min);
+                if(use_hsv)
+                {
+                    unsigned int region = val * 360 / 43;
+                    float remainder = (val * 360 - (region * 43)) * 6 / 256.0;
+
+                    float p = 0.0;
+                    float q = 1.0 - (remainder);
+                    float t = (remainder);
+
+                    switch (region)
+                    {
+                        case 0:
+                            color.x = 1.0; color.y = t; color.z = 0.0;
+                            break;
+                        case 1:
+                            color.x = q; color.y = 1.0; color.z = 0.0;
+                            break;
+                        case 2:
+                            color.x = 0.0; color.y = 1.0; color.z = t;
+                            break;
+                        case 3:
+                            color.x = 0.0; color.y = q; color.z = 1.0;
+                            break;
+                        case 4:
+                            color.x = t; color.y = 0.0; color.z = 1.0;
+                            break;
+                        default:
+                            color.x = 1.0; color.y = 0.0; color.z = q;
+                            break;
+                    }
+
+                }else{
+                    color.x = val*0.95F+0.05F;
+                    color.z = std::max(0.0F, 1.F - 10.0F*val);
+                    if(val>0.5F){
+                        color.y = 2.0F - 2.0F*val;
+                    }else{
+                        color.y = 2.0F*val;
+                    }
+                }
+            }else{
+                /// The color is just solid red. This could be a param.
+                color.x = 1.0;
+                color.y = 0.0;
+                color.z = 0.0;
+            }
 
             pVRVizApplication->add_point_to_scene(mat,vertdataarray,pt,color);
 
@@ -2083,6 +2141,8 @@ int main(int argc, char *argv[])
     pnh->getParam("intensity_max", intensity_max);
     pnh->getParam("manual_image_copy", manual_image_copy);
     pnh->getParam("overlay_alpha", overlay_alpha);
+    pnh->getParam("axis_colored_pc", axis_colored_pc);
+    pnh->getParam("use_hsv", use_hsv);
 
     /// Default to 720p companion window
     int window_width=1280;
