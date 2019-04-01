@@ -277,7 +277,7 @@ private:
         if(show_tf){
             /// Show the 3 axis of every frame in our cache
             for(int ii=0;ii<tf_cache.size();ii++){
-                add_frame_to_scene(tf_cache[ii].transform,vertdataarray,0.1/scaling_factor);
+                add_frame_to_scene(tf_cache[ii].transform,vertdataarray,0.1);
             }
         }
         if(pressed_id!=-1 && show_movement){
@@ -286,8 +286,8 @@ private:
             {
                 add_projectile_to_scene(current_trans_mat,vertdataarray,navgoal_start,navgoal_target,navgoal_throw_speed,Vector3(navgoal_r,navgoal_g,navgoal_b),navgoal_dt,navgoal_gravity);
             }else{
-                add_frame_to_scene(previous_trans_mat,vertdataarray,0.05/scaling_factor);
-                add_frame_to_scene(current_trans_mat ,vertdataarray,0.07/scaling_factor);
+                add_frame_to_scene(previous_trans_mat,vertdataarray,0.05);
+                add_frame_to_scene(current_trans_mat ,vertdataarray,0.07);
             }
         }
         if(move_id!=-1 && show_movement){
@@ -296,8 +296,8 @@ private:
             {
                 add_projectile_to_scene(move_current_trans_mat,vertdataarray,teleport_start,teleport_target,teleport_throw_speed,Vector3(teleport_r,teleport_g,teleport_b),teleport_dt,teleport_gravity);
             }else{
-                add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05/scaling_factor);
-                add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07/scaling_factor);
+                add_frame_to_scene(move_previous_trans_mat,vertdataarray,0.05);
+                add_frame_to_scene(move_current_trans_mat ,vertdataarray,0.07);
             }
         }
         if(show_grid){
@@ -346,7 +346,16 @@ private:
     void setScale(float scale)
     {
         m_fScale = scale;
-        m_fFarClip = 40.f;
+        m_mat4Scale.identity();
+        m_mat4Scale[0]=m_fScale;
+        m_mat4Scale[5]=m_fScale;
+        m_mat4Scale[10]=m_fScale;
+    }
+
+    void setClip(float near_clip=0.1f,float far_clip=40.f)
+    {
+        m_fNearClip = near_clip;
+        m_fFarClip = far_clip;
         SetupCameras();
     }
 
@@ -589,7 +598,7 @@ private:
         for(int idx=0;idx<robot_meshes.size();idx++){
             if(robot_meshes[idx]->needs_update){
 
-                robot_meshes[idx]->InitMarker(scaling_factor);
+                robot_meshes[idx]->InitMarker(1.0);
             }
         }
 
@@ -718,9 +727,10 @@ private:
         while ( y>0.0 )
         {
 
-            vertdataarray.push_back( x );
-            vertdataarray.push_back( y );
-            vertdataarray.push_back( z );
+            /// Divide by scale since we want this in VR units, not ROS units.
+            vertdataarray.push_back( x / m_fScale );
+            vertdataarray.push_back( y / m_fScale );
+            vertdataarray.push_back( z / m_fScale );
 
             vertdataarray.push_back( color.x );
             vertdataarray.push_back( color.y );
@@ -731,9 +741,10 @@ private:
             y+=v_y*dt;
             z+=v_z*dt;
 
-            vertdataarray.push_back( x );
-            vertdataarray.push_back( y );
-            vertdataarray.push_back( z );
+            /// Divide by scale since we want this in VR units, not ROS units.
+            vertdataarray.push_back( x / m_fScale );
+            vertdataarray.push_back( y / m_fScale );
+            vertdataarray.push_back( z / m_fScale );
 
             vertdataarray.push_back( color.x );
             vertdataarray.push_back( color.y );
@@ -762,9 +773,10 @@ private:
         for(;theta<2*M_PI;theta+=dr)
         {
 
-            vertdataarray.push_back( nx );
-            vertdataarray.push_back( y );
-            vertdataarray.push_back( nz );
+            /// Divide by scale since we want this in VR units, not ROS units.
+            vertdataarray.push_back( nx / m_fScale );
+            vertdataarray.push_back( y  / m_fScale );
+            vertdataarray.push_back( nz / m_fScale );
 
             vertdataarray.push_back( color.x );
             vertdataarray.push_back( color.y );
@@ -773,9 +785,10 @@ private:
             nx = x+radius*cos(theta);
             nz = z+radius*sin(theta);
 
-            vertdataarray.push_back( nx );
-            vertdataarray.push_back( y );
-            vertdataarray.push_back( nz );
+            /// Divide by scale since we want this in VR units, not ROS units.
+            vertdataarray.push_back( nx / m_fScale );
+            vertdataarray.push_back( y  / m_fScale );
+            vertdataarray.push_back( nz / m_fScale );
 
             vertdataarray.push_back( color.x );
             vertdataarray.push_back( color.y );
@@ -794,7 +807,7 @@ private:
         {
             Vector3 color( 0, 0, 0 );
             Vector4 point( 0, 0, 0, 1 );
-            point[i] += radius*scaling_factor;  // offset in X, Y, Z
+            point[i] += radius;  // offset in X, Y, Z
             color[i] = 1.0;  // R, G, B
             point = mat * point;
             vertdataarray.push_back( center.x );
@@ -826,7 +839,6 @@ private:
      * \param color              What RGB color to apply
      */
     void add_grid_to_scene( std::vector<float> &vertdataarray, float cell_size=1.0, int plane_cell_count=10, Vector3 color=Vector3(0.627,0.627,0.627) ){
-        cell_size*=scaling_factor;
         Matrix4 mat=GetRobotMatrixPose(base_frame);
         for(int jj=0;jj<3;jj++){
             if(jj==1){jj++;}
@@ -887,9 +899,9 @@ private:
         /// Use the Z-up version so that the nav stack doesn't complain about our quaternion relative to a Y-up frame
         navgoal_msg.header.frame_id = intermediate_frame+"_zup";
         navgoal_msg.header.stamp = ros::Time::now();
-        navgoal_msg.pose.position.x = navgoal_target.x/scaling_factor;
-        navgoal_msg.pose.position.y =-navgoal_target.z/scaling_factor;
-        navgoal_msg.pose.position.z =-navgoal_target.y/scaling_factor;
+        navgoal_msg.pose.position.x = navgoal_target.x / m_fScale;
+        navgoal_msg.pose.position.y =-navgoal_target.z / m_fScale;
+        navgoal_msg.pose.position.z =-navgoal_target.y / m_fScale;
         float theta = std::atan2(navgoal_target.x-navgoal_start.x,navgoal_target.z-navgoal_start.z);
         theta-=M_PI_2;
         if(theta<0.0){
@@ -1065,7 +1077,9 @@ private:
                         if(teleport_mode)
                         {
                             /// \todo We should move to where the person actually is, not the origin
-                            move_trans_mat.translate(teleport_target.x-teleport_start.x,teleport_target.y-teleport_start.y,teleport_target.z-teleport_start.z);
+                            move_trans_mat.translate((teleport_target.x-teleport_start.x)/m_fScale,
+                                                     (teleport_target.y-teleport_start.y)/m_fScale,
+                                                     (teleport_target.z-teleport_start.z)/m_fScale);
                             //move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
                         }else{
                             move_trans_mat_old = move_trans_mat;
@@ -1080,7 +1094,9 @@ private:
             if(teleport_mode)
             {
                 /// \todo We should move to where the person actually is, not the origin
-                move_trans_mat.translate(teleport_target.x-teleport_start.x,teleport_target.y-teleport_start.y,teleport_target.z-teleport_start.z);
+                move_trans_mat.translate((teleport_target.x-teleport_start.x)/m_fScale,
+                                         (teleport_target.y-teleport_start.y)/m_fScale,
+                                         (teleport_target.z-teleport_start.z)/m_fScale);
                 //move_trans_mat.translate(teleport_target.x,teleport_target.y,teleport_target.z);
             }else{
                 move_trans_mat_old = move_trans_mat;
@@ -1166,10 +1182,9 @@ private:
     {
 
         tf::Transform transform;
-        /// We divide by m_fScale to get back into real world units
-        transform.setOrigin(tf::Vector3(trans[12]/m_fScale,
-                                        trans[13]/m_fScale,
-                                        trans[14]/m_fScale));
+        transform.setOrigin(tf::Vector3(trans[12],
+                                        trans[13],
+                                        trans[14]));
         tf::Quaternion q;
         tf::Matrix3x3 m;
         m.setValue( trans[0],trans[4],trans[8],
@@ -1195,9 +1210,9 @@ private:
         Matrix4 mat1,mat2;
         mat1=Matrix4().identity();
 
-        mat1.translate(trans.getOrigin().getX()*m_fScale,
-                       trans.getOrigin().getY()*m_fScale,
-                       trans.getOrigin().getZ()*m_fScale);
+        mat1.translate(trans.getOrigin().getX(),
+                       trans.getOrigin().getY(),
+                       trans.getOrigin().getZ());
 
         mat2=Matrix4().identity();
         tf::Matrix3x3 m = trans.getBasis();
@@ -1418,9 +1433,9 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
         {
             Vector4 pt;
             /// We scale up from real world units to 'vr units'
-            pt.x=cloud->points[i].x*scaling_factor;
-            pt.y=cloud->points[i].y*scaling_factor;
-            pt.z=cloud->points[i].z*scaling_factor;
+            pt.x=cloud->points[i].x;
+            pt.y=cloud->points[i].y;
+            pt.z=cloud->points[i].z;
             pt.w=1.0;
 
             Vector3 color;
@@ -1446,9 +1461,9 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
         {
             Vector4 pt;
             /// We scale up from real world units to 'vr units'
-            pt.x=cloud->points[i].x*scaling_factor;
-            pt.y=cloud->points[i].y*scaling_factor;
-            pt.z=cloud->points[i].z*scaling_factor;
+            pt.x=cloud->points[i].x;
+            pt.y=cloud->points[i].y;
+            pt.z=cloud->points[i].z;
             pt.w=1.0;
 
             /// Convert intensity into a color spectrum
@@ -1483,7 +1498,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
         float z_min = 0.0;
         for(size_t i = 0; i<cloud->points.size(); i++)
         {
-            float z = cloud->points[i].z*scaling_factor;
+            float z = cloud->points[i].z;
             if(z > z_max){
                 z_max = z;
             }
@@ -1495,9 +1510,9 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
         {
             Vector4 pt;
             /// We scale up from real world units to 'vr units'
-            pt.x=cloud->points[i].x*scaling_factor;
-            pt.y=cloud->points[i].y*scaling_factor;
-            pt.z=cloud->points[i].z*scaling_factor;
+            pt.x=cloud->points[i].x;
+            pt.y=cloud->points[i].y;
+            pt.z=cloud->points[i].z;
             pt.w=1.0;
 
             Vector3 color;
@@ -1938,7 +1953,7 @@ bool loadRobot(float vr_scale=1.f){
                 }
                 if(success){
                     /// Add the mesh to the vector
-                    myMesh->InitMarker(scaling_factor);
+                    myMesh->InitMarker(1.0);
                     myMesh->initialized=true;
                     myMesh->needs_update=false;
                     pVRVizApplication->robot_meshes.push_back(myMesh);
@@ -1997,12 +2012,12 @@ int find_or_add_marker(visualization_msgs::Marker marker){
         ss << marker.id;
         /// \todo this needs to come from the marker pose
         Matrix4 trans;
-        trans.translate(marker.pose.position.x*scaling_factor,
-                        marker.pose.position.y*scaling_factor,
-                        marker.pose.position.z*scaling_factor);
+        trans.translate(marker.pose.position.x,
+                        marker.pose.position.y,
+                        marker.pose.position.z);
         Matrix4 rot = myMesh->quat2mat(marker.pose.orientation);
         Matrix4 full = trans*rot;
-        Vector3 scale(scaling_factor,scaling_factor,scaling_factor);
+        Vector3 scale(1.0,1.0,1.0);
         /// This doesn't work because Mesh::MeshEntry::Init can't be called from the callback thread.
         /// \todo we need a way to send the marker to the other thread but tell it to load when it's ready.
         loadModel(marker.mesh_resource,marker.header.frame_id,full,scale,marker.id,marker.ns,false);
@@ -2044,7 +2059,7 @@ void markers_Callback(const visualization_msgs::MarkerArray::ConstPtr& msg)
             Matrix4 mat4 = mat * matTransform4;
 
             /// Only scale.z is used. scale.z specifies the height of an uppercase "A".
-            float height=msg->markers[ii].scale.z*scaling_factor;
+            float height=msg->markers[ii].scale.z;
 
             pVRVizApplication->AddTextToScene(mat4,texturedvertdataarray,msg->markers[ii].text,height);
         }
@@ -2175,7 +2190,7 @@ int main(int argc, char *argv[])
 #ifndef USE_VULKAN
     /// If desired, load a robot model from the parameter server
     if(load_robot){
-        loadRobot(scaling_factor);
+        loadRobot(1.0);
     }
 #endif
 

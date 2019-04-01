@@ -471,13 +471,13 @@ bool CMainApplication::HandleInput()
 	{
 		vr::InputPoseActionData_t poseData;
 
-        vr::EVRInputError err=vr::VRInput()->GetPoseActionData( m_rHand[eHand].m_actionPose, vr::TrackingUniverseStanding, 0, &poseData, sizeof( poseData ), vr::k_ulInvalidInputValueHandle );
+		vr::EVRInputError err=vr::VRInput()->GetPoseActionData( m_rHand[eHand].m_actionPose, vr::TrackingUniverseStanding, 0, &poseData, sizeof( poseData ), vr::k_ulInvalidInputValueHandle );
 
-        if ( err != vr::VRInputError_None
+		if ( err != vr::VRInputError_None
 			|| !poseData.bActive || !poseData.pose.bPoseIsValid )
 		{
 			m_rHand[eHand].m_bShowController = false;
-            //std::cout << "Error getting pose for controller " << eHand << ", err=" << int(err) << ", Active="<< poseData.bActive << ", PoseValid=" << poseData.pose.bPoseIsValid << std::endl;
+			//std::cout << "Error getting pose for controller " << eHand << ", err=" << int(err) << ", Active="<< poseData.bActive << ", PoseValid=" << poseData.pose.bPoseIsValid << std::endl;
 		}
 		else
 		{
@@ -732,41 +732,41 @@ bool CMainApplication::CreateAllShaders()
 
 
 
-    m_unRenderModelProgramID = CompileGLShader(
-        "render model",
+	m_unRenderModelProgramID = CompileGLShader(
+		"render model",
 
-        // vertex shader
-        "#version 410\n"
-        "uniform mat4 matrix;\n"
-        "layout(location = 0) in vec4 position;\n"
-        "layout(location = 1) in vec3 v3NormalIn;\n"
-        "layout(location = 2) in vec2 v2TexCoordsIn;\n"
-        "out vec2 v2TexCoord;\n"
-        "void main()\n"
-        "{\n"
-        "	v2TexCoord = v2TexCoordsIn;\n"
-        "	gl_Position = matrix * vec4(position.xyz, 1);\n"
-        "}\n",
+		// vertex shader
+		"#version 410\n"
+		"uniform mat4 matrix;\n"
+		"layout(location = 0) in vec4 position;\n"
+		"layout(location = 1) in vec3 v3NormalIn;\n"
+		"layout(location = 2) in vec2 v2TexCoordsIn;\n"
+		"out vec2 v2TexCoord;\n"
+		"void main()\n"
+		"{\n"
+		"	v2TexCoord = v2TexCoordsIn;\n"
+		"	gl_Position = matrix * vec4(position.xyz, 1);\n"
+		"}\n",
 
-        //fragment shader
-        "#version 410 core\n"
-        "uniform sampler2D diffuse;\n"
-        "in vec2 v2TexCoord;\n"
-        "out vec4 outputColor;\n"
-        "void main()\n"
-        "{\n"
-        "   outputColor = texture( diffuse, v2TexCoord);\n"
-        "}\n"
+		//fragment shader
+		"#version 410 core\n"
+		"uniform sampler2D diffuse;\n"
+		"in vec2 v2TexCoord;\n"
+		"out vec4 outputColor;\n"
+		"void main()\n"
+		"{\n"
+		"   outputColor = texture( diffuse, v2TexCoord);\n"
+		"}\n"
 
-        );
-    m_nRenderModelMatrixLocation = glGetUniformLocation( m_unRenderModelProgramID, "matrix" );
-    if( m_nRenderModelMatrixLocation == -1 )
-    {
-        dprintf( "Unable to find matrix uniform in render model shader\n" );
-        return false;
-    }
+		);
+	m_nRenderModelMatrixLocation = glGetUniformLocation( m_unRenderModelProgramID, "matrix" );
+	if( m_nRenderModelMatrixLocation == -1 )
+	{
+		dprintf( "Unable to find matrix uniform in render model shader\n" );
+		return false;
+	}
 
-    m_unLitRGBModelProgramID = CompileGLShader(
+	m_unLitRGBModelProgramID = CompileGLShader(
 		"render model",
 
 		// vertex shader
@@ -921,22 +921,22 @@ bool CMainApplication::CreateAllShaders()
 
 		);
 
-    m_nLitRGBModelMatrixLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gWVP");
-    m_WorldMatrixRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gWorld");
-    m_colorTextureRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gColorMap");
-    m_eyeWorldPosRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gEyeWorldPos");
-    m_dirLightRGBLocation.Color = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.Color");
-    m_dirLightRGBLocation.AmbientIntensity = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.AmbientIntensity");
-    m_dirLightRGBLocation.Direction = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Direction");
-    m_dirLightRGBLocation.DiffuseIntensity = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.DiffuseIntensity");
-    m_matSpecularIntensityRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gMatSpecularIntensity");
-    m_matSpecularPowerRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gSpecularPower");
-    m_numPointLightsRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gNumPointLights");
-    m_numSpotLightsRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gNumSpotLights");
+	m_nLitRGBModelMatrixLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gWVP");
+	m_WorldMatrixRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gWorld");
+	m_colorTextureRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gColorMap");
+	m_eyeWorldPosRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gEyeWorldPos");
+	m_dirLightRGBLocation.Color = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.Color");
+	m_dirLightRGBLocation.AmbientIntensity = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.AmbientIntensity");
+	m_dirLightRGBLocation.Direction = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Direction");
+	m_dirLightRGBLocation.DiffuseIntensity = glGetUniformLocation( m_unLitRGBModelProgramID, "gDirectionalLight.Base.DiffuseIntensity");
+	m_matSpecularIntensityRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gMatSpecularIntensity");
+	m_matSpecularPowerRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gSpecularPower");
+	m_numPointLightsRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gNumPointLights");
+	m_numSpotLightsRGBLocation = glGetUniformLocation( m_unLitRGBModelProgramID, "gNumSpotLights");
 
 
 
-    if( m_nLitRGBModelMatrixLocation == -1 )
+	if( m_nLitRGBModelMatrixLocation == -1 )
 	{
 		dprintf( "Unable to find matrix uniform in render rgb model shader\n" );
 		return false;
@@ -945,7 +945,7 @@ bool CMainApplication::CreateAllShaders()
 
 
 
-    m_unLitModelProgramID = CompileGLShader(
+	m_unLitModelProgramID = CompileGLShader(
 		"render model",
 
 		// vertex shader
@@ -1101,24 +1101,24 @@ bool CMainApplication::CreateAllShaders()
 
 		);
 
-    m_nLitModelMatrixLocation = glGetUniformLocation( m_unLitModelProgramID, "gWVP");
-    m_WorldMatrixLocation = glGetUniformLocation( m_unLitModelProgramID, "gWorld");
-    m_colorTextureLocation = glGetUniformLocation( m_unLitModelProgramID, "gColorMap");
-    m_eyeWorldPosLocation = glGetUniformLocation( m_unLitModelProgramID, "gEyeWorldPos");
-    m_dirLightLocation.Color = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.Color");
-    m_dirLightLocation.AmbientIntensity = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.AmbientIntensity");
-    m_dirLightLocation.Direction = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Direction");
-    m_dirLightLocation.DiffuseIntensity = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.DiffuseIntensity");
-    m_matSpecularIntensityLocation = glGetUniformLocation( m_unLitModelProgramID, "gMatSpecularIntensity");
-    m_matSpecularPowerLocation = glGetUniformLocation( m_unLitModelProgramID, "gSpecularPower");
-    m_numPointLightsLocation = glGetUniformLocation( m_unLitModelProgramID, "gNumPointLights");
-    m_numSpotLightsLocation = glGetUniformLocation( m_unLitModelProgramID, "gNumSpotLights");
+	m_nLitModelMatrixLocation = glGetUniformLocation( m_unLitModelProgramID, "gWVP");
+	m_WorldMatrixLocation = glGetUniformLocation( m_unLitModelProgramID, "gWorld");
+	m_colorTextureLocation = glGetUniformLocation( m_unLitModelProgramID, "gColorMap");
+	m_eyeWorldPosLocation = glGetUniformLocation( m_unLitModelProgramID, "gEyeWorldPos");
+	m_dirLightLocation.Color = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.Color");
+	m_dirLightLocation.AmbientIntensity = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.AmbientIntensity");
+	m_dirLightLocation.Direction = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Direction");
+	m_dirLightLocation.DiffuseIntensity = glGetUniformLocation( m_unLitModelProgramID, "gDirectionalLight.Base.DiffuseIntensity");
+	m_matSpecularIntensityLocation = glGetUniformLocation( m_unLitModelProgramID, "gMatSpecularIntensity");
+	m_matSpecularPowerLocation = glGetUniformLocation( m_unLitModelProgramID, "gSpecularPower");
+	m_numPointLightsLocation = glGetUniformLocation( m_unLitModelProgramID, "gNumPointLights");
+	m_numSpotLightsLocation = glGetUniformLocation( m_unLitModelProgramID, "gNumSpotLights");
 
 
 
-    if( m_nLitModelMatrixLocation == -1 )
+	if( m_nLitModelMatrixLocation == -1 )
 	{
-        dprintf( "Unable to find matrix uniform in lit model shader\n" );
+		dprintf( "Unable to find matrix uniform in lit model shader\n" );
 		return false;
 	}
 
@@ -1426,6 +1426,7 @@ void CMainApplication::SetupCameras()
 	m_mat4ProjectionRight = GetHMDMatrixProjectionEye( vr::Eye_Right );
 	m_mat4eyePosLeft = GetHMDMatrixPoseEye( vr::Eye_Left );
 	m_mat4eyePosRight = GetHMDMatrixPoseEye( vr::Eye_Right );
+	m_mat4Scale.scale( m_fScale, m_fScale, m_fScale );
 }
 
 
@@ -1557,14 +1558,14 @@ void CMainApplication::RenderStereoTargets()
 	glDisable( GL_MULTISAMPLE );
 	 	
  	glBindFramebuffer(GL_READ_FRAMEBUFFER, leftEyeDesc.m_nRenderFramebufferId);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, leftEyeDesc.m_nResolveFramebufferId );
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, leftEyeDesc.m_nResolveFramebufferId );
 
-    glBlitFramebuffer( 0, 0, m_nRenderWidth, m_nRenderHeight, 0, 0, m_nRenderWidth, m_nRenderHeight, 
+	glBlitFramebuffer( 0, 0, m_nRenderWidth, m_nRenderHeight, 0, 0, m_nRenderWidth, m_nRenderHeight, 
 		GL_COLOR_BUFFER_BIT,
  		GL_LINEAR );
 
  	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0 );	
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0 );	
 
 	glEnable( GL_MULTISAMPLE );
 
@@ -1577,14 +1578,14 @@ void CMainApplication::RenderStereoTargets()
 	glDisable( GL_MULTISAMPLE );
 
  	glBindFramebuffer(GL_READ_FRAMEBUFFER, rightEyeDesc.m_nRenderFramebufferId );
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, rightEyeDesc.m_nResolveFramebufferId );
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, rightEyeDesc.m_nResolveFramebufferId );
 	
-    glBlitFramebuffer( 0, 0, m_nRenderWidth, m_nRenderHeight, 0, 0, m_nRenderWidth, m_nRenderHeight, 
+	glBlitFramebuffer( 0, 0, m_nRenderWidth, m_nRenderHeight, 0, 0, m_nRenderWidth, m_nRenderHeight, 
 		GL_COLOR_BUFFER_BIT,
  		GL_LINEAR  );
 
  	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0 );
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0 );
 }
 
 
@@ -1595,11 +1596,12 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
+	Matrix4 ViewMat = GetCurrentViewProjectionMatrix( nEye ) * m_mat4Scale;
 
 	if( m_bShowCubes )
 	{
 		glUseProgram( m_unSceneProgramID );
-		glUniformMatrix4fv( m_nSceneMatrixLocation, 1, GL_FALSE, GetCurrentViewProjectionMatrix( nEye ).get() );
+		glUniformMatrix4fv( m_nSceneMatrixLocation, 1, GL_FALSE, ViewMat.get() );
 		glBindVertexArray( m_unSceneVAO );
 		glBindTexture( GL_TEXTURE_2D, m_iTexture );
 		glDrawArrays( GL_TRIANGLES, 0, m_uiVertcount );
@@ -1612,25 +1614,25 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 	{
 		// draw the controller axis lines
 		glUseProgram( m_unControllerTransformProgramID );
-		glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, GetCurrentViewProjectionMatrix( nEye ).get() );
+		glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, ViewMat.get() );
 		glBindVertexArray( m_unControllerVAO );
 		glDrawArrays( GL_LINES, 0, m_uiControllerVertcount );
 		glBindVertexArray( 0 );
 
-        // Only bother drawing if there are points. This avoids calls to GetRobotMatrixPose() where m_strPointCloudFrame is an empty string.
-        if(m_uiPointCloudVertcount>0){
-            // draw the point cloud
-            glUseProgram( m_unControllerTransformProgramID );
-            glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, (GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(m_strPointCloudFrame)).get() );
-            glBindVertexArray( m_unPointCloudVAO );
-            glPointSize( m_unPointSize );
-            glDrawArrays( GL_POINTS, 0, m_uiPointCloudVertcount );
-            glBindVertexArray( 0 );
-        }
+		// Only bother drawing if there are points. This avoids calls to GetRobotMatrixPose() where m_strPointCloudFrame is an empty string.
+		if(m_uiPointCloudVertcount>0){
+			// draw the point cloud
+			glUseProgram( m_unControllerTransformProgramID );
+			glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, (ViewMat * GetRobotMatrixPose(m_strPointCloudFrame)).get() );
+			glBindVertexArray( m_unPointCloudVAO );
+			glPointSize( m_unPointSize );
+			glDrawArrays( GL_POINTS, 0, m_uiPointCloudVertcount );
+			glBindVertexArray( 0 );
+		}
 
 		// draw the color triangle mesh
 		glUseProgram( m_unControllerTransformProgramID );
-		glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, GetCurrentViewProjectionMatrix( nEye ).get() );
+		glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, ViewMat.get() );
 		glBindVertexArray( m_unColorTrisVAO );
 		glDrawArrays( GL_TRIANGLES, 0, m_uiColorTrisVertcount );
 		glBindVertexArray( 0 );
@@ -1667,7 +1669,7 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
                     // ----- Render Model rendering -----
                     glUseProgram( m_unLitModelProgramID );
 
-                    Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->frame_id);
+                    Matrix4 matMVP = ViewMat * GetRobotMatrixPose(robot_meshes[idx]->frame_id);
                     Matrix4 matWorld = GetRobotMatrixPose(robot_meshes[idx]->frame_id) ;
                     Vector4 eyePos = GetHMDMatrixPoseEye(nEye)*Vector4(0,0,0,1);
                     glUniformMatrix4fv( m_nLitModelMatrixLocation, 1, GL_FALSE, matMVP.get() );
@@ -1699,7 +1701,7 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
                     // ----- Render Model rendering -----
                     glUseProgram( m_unLitRGBModelProgramID );
 
-                    Matrix4 matMVP = GetCurrentViewProjectionMatrix( nEye ) * GetRobotMatrixPose(robot_meshes[idx]->frame_id);
+                    Matrix4 matMVP = ViewMat * GetRobotMatrixPose(robot_meshes[idx]->frame_id);
                     Matrix4 matWorld = GetRobotMatrixPose(robot_meshes[idx]->frame_id) ;
                     Vector4 eyePos = GetHMDMatrixPoseEye(nEye)*Vector4(0,0,0,1);
                     glUniformMatrix4fv( m_nLitRGBModelMatrixLocation, 1, GL_FALSE, matMVP.get() );

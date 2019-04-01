@@ -181,6 +181,7 @@ protected:
 	int m_iSceneVolumeDepth;
 	float m_fScaleSpacing;
 	float m_fScale;
+	Matrix4 m_mat4Scale;
 
 	int m_iSceneVolumeInit;                                  // if you want something other than the default 20x20x20
 
@@ -246,56 +247,56 @@ protected:
 	GLint m_nLitRGBModelMatrixLocation;
 	GLint m_nLitModelMatrixLocation;
 
-    GLuint m_WVPRGBLocation;
-    GLuint m_WorldMatrixRGBLocation;
-    GLuint m_colorTextureRGBLocation;
-    GLuint m_eyeWorldPosRGBLocation;
-    GLuint m_matSpecularIntensityRGBLocation;
-    GLuint m_matSpecularPowerRGBLocation;
-    GLuint m_numPointLightsRGBLocation;
-    GLuint m_numSpotLightsRGBLocation;
+	GLuint m_WVPRGBLocation;
+	GLuint m_WorldMatrixRGBLocation;
+	GLuint m_colorTextureRGBLocation;
+	GLuint m_eyeWorldPosRGBLocation;
+	GLuint m_matSpecularIntensityRGBLocation;
+	GLuint m_matSpecularPowerRGBLocation;
+	GLuint m_numPointLightsRGBLocation;
+	GLuint m_numSpotLightsRGBLocation;
 
-    GLuint m_WVPLocation;
-    GLuint m_WorldMatrixLocation;
-    GLuint m_colorTextureLocation;
-    GLuint m_eyeWorldPosLocation;
-    GLuint m_matSpecularIntensityLocation;
-    GLuint m_matSpecularPowerLocation;
-    GLuint m_numPointLightsLocation;
-    GLuint m_numSpotLightsLocation;
+	GLuint m_WVPLocation;
+	GLuint m_WorldMatrixLocation;
+	GLuint m_colorTextureLocation;
+	GLuint m_eyeWorldPosLocation;
+	GLuint m_matSpecularIntensityLocation;
+	GLuint m_matSpecularPowerLocation;
+	GLuint m_numPointLightsLocation;
+	GLuint m_numSpotLightsLocation;
 
-    struct {
-        GLuint Color;
-        GLuint AmbientIntensity;
-        GLuint DiffuseIntensity;
-        GLuint Direction;
-    } m_dirLightLocation,m_dirLightRGBLocation;
+	struct {
+		GLuint Color;
+		GLuint AmbientIntensity;
+		GLuint DiffuseIntensity;
+		GLuint Direction;
+	} m_dirLightLocation,m_dirLightRGBLocation;
 
-    struct {
-        GLuint Color;
-        GLuint AmbientIntensity;
-        GLuint DiffuseIntensity;
-        GLuint Position;
-        struct {
-            GLuint Constant;
-            GLuint Linear;
-            GLuint Exp;
-        } Atten;
-    } m_pointLightsLocation[2];
+	struct {
+		GLuint Color;
+		GLuint AmbientIntensity;
+		GLuint DiffuseIntensity;
+		GLuint Position;
+		struct {
+			GLuint Constant;
+			GLuint Linear;
+			GLuint Exp;
+		} Atten;
+	} m_pointLightsLocation[2];
 
-    struct {
-        GLuint Color;
-        GLuint AmbientIntensity;
-        GLuint DiffuseIntensity;
-        GLuint Position;
-        GLuint Direction;
-        GLuint Cutoff;
-        struct {
-            GLuint Constant;
-            GLuint Linear;
-            GLuint Exp;
-        } Atten;
-    } m_spotLightsLocation[2];
+	struct {
+		GLuint Color;
+		GLuint AmbientIntensity;
+		GLuint DiffuseIntensity;
+		GLuint Position;
+		GLuint Direction;
+		GLuint Cutoff;
+		struct {
+			GLuint Constant;
+			GLuint Linear;
+			GLuint Exp;
+		} Atten;
+	} m_spotLightsLocation[2];
 
 	struct FramebufferDesc
 	{
@@ -317,13 +318,13 @@ protected:
 
 	std::vector< CGLRenderModel * > m_vecRenderModels;
 
-    vr::VRActionHandle_t m_actionMoveWorld = vr::k_ulInvalidActionHandle;
-    vr::VRActionHandle_t m_actionTwistCommand = vr::k_ulInvalidActionHandle;
-    vr::VRActionHandle_t m_actionResetGame = vr::k_ulInvalidActionHandle;
-    vr::VRActionHandle_t m_actionTriggerHaptic = vr::k_ulInvalidActionHandle;
+	vr::VRActionHandle_t m_actionMoveWorld = vr::k_ulInvalidActionHandle;
+	vr::VRActionHandle_t m_actionTwistCommand = vr::k_ulInvalidActionHandle;
+	vr::VRActionHandle_t m_actionResetGame = vr::k_ulInvalidActionHandle;
+	vr::VRActionHandle_t m_actionTriggerHaptic = vr::k_ulInvalidActionHandle;
 	vr::VRActionHandle_t m_actionAnalongInput = vr::k_ulInvalidActionHandle;
 
-    vr::VRActionSetHandle_t m_actionsetVrviz = vr::k_ulInvalidActionSetHandle;
+	vr::VRActionSetHandle_t m_actionsetVrviz = vr::k_ulInvalidActionSetHandle;
 };
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -331,21 +332,21 @@ protected:
 //---------------------------------------------------------------------------------------------------------------------
 bool inline GetDigitalActionRisingEdge(vr::VRActionHandle_t action, vr::VRInputValueHandle_t *pDevicePath = nullptr )
 {
-    vr::InputDigitalActionData_t actionData;
-    vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
-    if (pDevicePath)
-    {
-        *pDevicePath = vr::k_ulInvalidInputValueHandle;
-        if (actionData.bActive)
-        {
-            vr::InputOriginInfo_t originInfo;
-            if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
-            {
-                *pDevicePath = originInfo.devicePath;
-            }
-        }
-    }
-    return actionData.bActive && actionData.bChanged && actionData.bState;
+	vr::InputDigitalActionData_t actionData;
+	vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
+	if (pDevicePath)
+	{
+		*pDevicePath = vr::k_ulInvalidInputValueHandle;
+		if (actionData.bActive)
+		{
+			vr::InputOriginInfo_t originInfo;
+			if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
+			{
+				*pDevicePath = originInfo.devicePath;
+			}
+		}
+	}
+	return actionData.bActive && actionData.bChanged && actionData.bState;
 }
 
 
@@ -354,21 +355,21 @@ bool inline GetDigitalActionRisingEdge(vr::VRActionHandle_t action, vr::VRInputV
 //---------------------------------------------------------------------------------------------------------------------
 bool inline GetDigitalActionFallingEdge(vr::VRActionHandle_t action, vr::VRInputValueHandle_t *pDevicePath = nullptr )
 {
-    vr::InputDigitalActionData_t actionData;
-    vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
-    if (pDevicePath)
-    {
-        *pDevicePath = vr::k_ulInvalidInputValueHandle;
-        if (actionData.bActive)
-        {
-            vr::InputOriginInfo_t originInfo;
-            if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
-            {
-                *pDevicePath = originInfo.devicePath;
-            }
-        }
-    }
-    return actionData.bActive && actionData.bChanged && !actionData.bState;
+	vr::InputDigitalActionData_t actionData;
+	vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
+	if (pDevicePath)
+	{
+		*pDevicePath = vr::k_ulInvalidInputValueHandle;
+		if (actionData.bActive)
+		{
+			vr::InputOriginInfo_t originInfo;
+			if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
+			{
+				*pDevicePath = originInfo.devicePath;
+			}
+		}
+	}
+	return actionData.bActive && actionData.bChanged && !actionData.bState;
 }
 
 
@@ -377,21 +378,21 @@ bool inline GetDigitalActionFallingEdge(vr::VRActionHandle_t action, vr::VRInput
 //---------------------------------------------------------------------------------------------------------------------
 bool inline GetDigitalActionState(vr::VRActionHandle_t action, vr::VRInputValueHandle_t *pDevicePath = nullptr )
 {
-    vr::InputDigitalActionData_t actionData;
-    vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
-    if (pDevicePath)
-    {
-        *pDevicePath = vr::k_ulInvalidInputValueHandle;
-        if (actionData.bActive)
-        {
-            vr::InputOriginInfo_t originInfo;
-            if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
-            {
-                *pDevicePath = originInfo.devicePath;
-            }
-        }
-    }
-    return actionData.bActive && actionData.bState;
+	vr::InputDigitalActionData_t actionData;
+	vr::VRInput()->GetDigitalActionData(action, &actionData, sizeof(actionData), vr::k_ulInvalidInputValueHandle );
+	if (pDevicePath)
+	{
+		*pDevicePath = vr::k_ulInvalidInputValueHandle;
+		if (actionData.bActive)
+		{
+			vr::InputOriginInfo_t originInfo;
+			if (vr::VRInputError_None == vr::VRInput()->GetOriginTrackedDeviceInfo(actionData.activeOrigin, &originInfo, sizeof(originInfo)))
+			{
+				*pDevicePath = originInfo.devicePath;
+			}
+		}
+	}
+	return actionData.bActive && actionData.bState;
 }
 
 //-----------------------------------------------------------------------------
