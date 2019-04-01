@@ -273,7 +273,6 @@ private:
     void RenderControllerAxes()
     {
         std::vector<float> vertdataarray;
-        m_uiControllerVertcount=0;
         if(show_tf){
             /// Show the 3 axis of every frame in our cache
             for(int ii=0;ii<tf_cache.size();ii++){
@@ -330,6 +329,7 @@ private:
         glBindBuffer( GL_ARRAY_BUFFER, m_glControllerVertBuffer );
 
         // set vertex data if we have some
+        m_uiControllerVertcount=vertdataarray.size()/6;
         if( vertdataarray.size() > 0 )
         {
             //$ TODO: Use glBufferSubData for this...
@@ -564,13 +564,13 @@ private:
 
 
         // Setup the VAO the first time through.
-        if ( m_unPointCloudVAO == 0 )
+        if ( m_vaoPointCloud.unVAO == 0 )
         {
-            glGenVertexArrays( 1, &m_unPointCloudVAO );
-            glBindVertexArray( m_unPointCloudVAO );
+            glGenVertexArrays( 1, &(m_vaoPointCloud.unVAO) );
+            glBindVertexArray( m_vaoPointCloud.unVAO );
 
-            glGenBuffers( 1, &m_glPointCloudVertBuffer );
-            glBindBuffer( GL_ARRAY_BUFFER, m_glPointCloudVertBuffer );
+            glGenBuffers( 1, &m_vaoPointCloud.glVertBuffer );
+            glBindBuffer( GL_ARRAY_BUFFER, m_vaoPointCloud.glVertBuffer );
 
             GLuint stride = 2 * 3 * sizeof( float );
             uintptr_t offset = 0;
@@ -585,10 +585,10 @@ private:
             glBindVertexArray( 0 );
         }
 
-        glBindBuffer( GL_ARRAY_BUFFER, m_glPointCloudVertBuffer );
+        glBindBuffer( GL_ARRAY_BUFFER, m_vaoPointCloud.glVertBuffer );
 
         // set vertex data if we have some
-        m_uiPointCloudVertcount = color_points_vertdataarray.size()/6;
+        m_vaoPointCloud.uiVertcount = color_points_vertdataarray.size()/6;
         if( color_points_vertdataarray.size() > 0 )
         {
             //$ TODO: Use glBufferSubData for this...
@@ -749,8 +749,6 @@ private:
             vertdataarray.push_back( color.x );
             vertdataarray.push_back( color.y );
             vertdataarray.push_back( color.z );
-
-            m_uiControllerVertcount += 2;
         }
         /// We may have overshot a bit, so set y back to 0.0;
         y = 0.0;
@@ -793,8 +791,6 @@ private:
             vertdataarray.push_back( color.x );
             vertdataarray.push_back( color.y );
             vertdataarray.push_back( color.z );
-
-            m_uiControllerVertcount += 2;
         }
     }
 
@@ -825,8 +821,6 @@ private:
             vertdataarray.push_back( color.x );
             vertdataarray.push_back( color.y );
             vertdataarray.push_back( color.z );
-
-            m_uiControllerVertcount += 2;
         }
     }
 
@@ -865,8 +859,6 @@ private:
                 vertdataarray.push_back( color.x );
                 vertdataarray.push_back( color.y );
                 vertdataarray.push_back( color.z );
-
-                m_uiControllerVertcount += 2;
             }
         }
     }
@@ -1416,7 +1408,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
     }
 
     Matrix4 mat = Matrix4().identity();
-    pVRVizApplication->m_strPointCloudFrame = cloud_in->header.frame_id;
+    pVRVizApplication->m_vaoPointCloud.frame_id = cloud_in->header.frame_id;
 
     std::vector<float> vertdataarray;
 
@@ -2126,6 +2118,10 @@ int main(int argc, char *argv[])
     pnh->getParam("show_grid", show_grid);
     pnh->getParam("show_movement", show_movement);
     pnh->getParam("sbs_image", sbs_image);
+    float near_clip=0.1f;
+    float far_clip=40.0f;
+    pnh->getParam("near_clip", near_clip);
+    pnh->getParam("far_clip", far_clip);
 
     /// Teleport params
     pnh->getParam("teleport_mode", teleport_mode);
@@ -2181,7 +2177,10 @@ int main(int argc, char *argv[])
         pVRVizApplication->Shutdown();
         return 1;
     }
+    /// Reset scale again, BInit() reset it.
     pVRVizApplication->setScale(scaling_factor);
+    /// Set clipping after BInit() reset it.
+    pVRVizApplication->setClip(near_clip,far_clip);
 
     /// We spawn a spinner to look for callbacks
     ros::AsyncSpinner spinner(1); // Use 1 threads

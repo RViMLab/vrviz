@@ -21,10 +21,6 @@ CMainApplication::CMainApplication( int argc, char *argv[] )
 	, m_bGlFinishHack( true )
 	, m_glControllerVertBuffer( 0 )
 	, m_unControllerVAO( 0 )
-	, m_glPointCloudVertBuffer( 0 )
-	, m_unPointCloudVAO( 0 )
-	, m_glColorTrisVertBuffer( 0 )
-	, m_unColorTrisVAO( 0 )
 	, m_unSceneVAO( 0 )
 	, m_nSceneMatrixLocation( -1 )
 	, m_nControllerMatrixLocation( -1 )
@@ -38,6 +34,8 @@ CMainApplication::CMainApplication( int argc, char *argv[] )
 	, m_bShowCubes( true )
 	, m_bShowControllers( true )
 {
+	m_vaoPointCloud.glVertBuffer = 0;
+	m_vaoPointCloud.unVAO = 0;
 
 	for( int i = 1; i < argc; i++ )
 	{
@@ -370,11 +368,8 @@ void CMainApplication::Shutdown()
 		{
 			glDeleteVertexArrays( 1, &m_unControllerVAO );
 		}
-		if( m_unPointCloudVAO != 0 ){
-			glDeleteVertexArrays( 1, &m_unPointCloudVAO );
-		}
-		if( m_unColorTrisVAO != 0 ){
-			glDeleteVertexArrays( 1, &m_unColorTrisVAO );
+		if( m_vaoPointCloud.unVAO != 0 ){
+			glDeleteVertexArrays( 1, &(m_vaoPointCloud.unVAO) );
 		}
 	}
 
@@ -1426,7 +1421,6 @@ void CMainApplication::SetupCameras()
 	m_mat4ProjectionRight = GetHMDMatrixProjectionEye( vr::Eye_Right );
 	m_mat4eyePosLeft = GetHMDMatrixPoseEye( vr::Eye_Left );
 	m_mat4eyePosRight = GetHMDMatrixPoseEye( vr::Eye_Right );
-	m_mat4Scale.scale( m_fScale, m_fScale, m_fScale );
 }
 
 
@@ -1620,22 +1614,15 @@ void CMainApplication::RenderScene( vr::Hmd_Eye nEye )
 		glBindVertexArray( 0 );
 
 		// Only bother drawing if there are points. This avoids calls to GetRobotMatrixPose() where m_strPointCloudFrame is an empty string.
-		if(m_uiPointCloudVertcount>0){
+		if(m_vaoPointCloud.uiVertcount>0){
 			// draw the point cloud
 			glUseProgram( m_unControllerTransformProgramID );
-			glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, (ViewMat * GetRobotMatrixPose(m_strPointCloudFrame)).get() );
-			glBindVertexArray( m_unPointCloudVAO );
+			glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, (ViewMat * GetRobotMatrixPose(m_vaoPointCloud.frame_id)).get() );
+			glBindVertexArray( m_vaoPointCloud.unVAO );
 			glPointSize( m_unPointSize );
-			glDrawArrays( GL_POINTS, 0, m_uiPointCloudVertcount );
+			glDrawArrays( GL_POINTS, 0, m_vaoPointCloud.uiVertcount );
 			glBindVertexArray( 0 );
 		}
-
-		// draw the color triangle mesh
-		glUseProgram( m_unControllerTransformProgramID );
-		glUniformMatrix4fv( m_nControllerMatrixLocation, 1, GL_FALSE, ViewMat.get() );
-		glBindVertexArray( m_unColorTrisVAO );
-		glDrawArrays( GL_TRIANGLES, 0, m_uiColorTrisVertcount );
-		glBindVertexArray( 0 );
 	}
 
 	// ----- Render Model rendering -----

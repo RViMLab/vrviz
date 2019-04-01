@@ -125,7 +125,15 @@ public:
 	std::string m_strTextPath;
 	std::string m_strActionManifestPath;
 	std::vector<Mesh*> robot_meshes;
-	std::string m_strPointCloudFrame;
+
+	struct VAO {
+		GLuint glVertBuffer;
+		GLuint unVAO;
+		unsigned int uiVertcount;
+		std::string frame_id;
+	};
+
+	VAO m_vaoPointCloud;
 protected:
 	bool m_bDebugOpenGL;
 	bool m_bVerbose;
@@ -202,14 +210,6 @@ protected:
 	GLuint m_glControllerVertBuffer;
 	GLuint m_unControllerVAO;
 	unsigned int m_uiControllerVertcount;
-
-	GLuint m_glPointCloudVertBuffer;
-	GLuint m_unPointCloudVAO;
-	unsigned int m_uiPointCloudVertcount;
-
-	GLuint m_glColorTrisVertBuffer;
-	GLuint m_unColorTrisVAO;
-	unsigned int m_uiColorTrisVertcount;
 
 	Matrix4 m_mat4HMDPose;
 	Matrix4 m_mat4eyePosLeft;
