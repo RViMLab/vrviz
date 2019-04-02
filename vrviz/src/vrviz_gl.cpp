@@ -13,6 +13,7 @@
 #include <sensor_msgs/PointCloud.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/Float32.h>
 
 /// Needed for rendering image to overlay
 #include <cv_bridge/cv_bridge.h>
@@ -1386,6 +1387,11 @@ void showCallback(const std_msgs::Bool::ConstPtr& show_in)
     pVRVizApplication->setDisplayControllers(show_in->data);
 }
 
+void scaleCallback(const std_msgs::Float32::ConstPtr& scale_in)
+{
+    pVRVizApplication->setScale(scale_in->data);
+}
+
 /*!
  * \brief Callback for a point cloud with color
  *
@@ -2089,6 +2095,7 @@ int main(int argc, char *argv[])
     ros::Subscriber sub_cloud = nh->subscribe("/cloud", 1, pointCloudCallback);
     ros::Subscriber sub_lock = nh->subscribe("/lock", 1, lockCallback);
     ros::Subscriber sub_show = nh->subscribe("/show", 1, showCallback);
+    ros::Subscriber sub_scale = nh->subscribe("/scale", 1, scaleCallback);
 
     /// For now we only expect to see two controllers.
     controller_pub[1] = nh->advertise<sensor_msgs::Joy>("/controller_left",1);
