@@ -4,7 +4,8 @@
   <arg name="marker_remap" default="/markers"/>
   <arg name="cloud_remap" default="/cloud"/>
   <arg name="twist_remap" default="/controller_twist"/>
-  <arg name="image_remap" default="/image"/>
+  <arg name="camera_remap" default="/image"/>
+  <arg name="image_remap" default="/rgb/image_raw"/>
   <arg name="scaling_factor" default="1.0"/>
   <arg name="load_robot" default="false"/>
   <arg name="hud_dist" default="10.0"/>
@@ -24,7 +25,8 @@
     <remap from="/markers" to="$(arg marker_remap)" />
     <remap from="/cloud" to="$(arg cloud_remap)" />
     <remap from="/controller_twist" to="$(arg twist_remap)" />
-    <remap from="image" to="$(arg image_remap)" />
+    <remap from="image" to="$(arg camera_remap)" />
+    <remap from="/rgb/image_raw" to="$(arg image_remap)" />
     <param name="scaling_factor" value="$(arg scaling_factor)"/>
     <param name="point_size" value="$(arg point_size)"/>
     <param name="load_robot" value="$(arg load_robot)"/>
