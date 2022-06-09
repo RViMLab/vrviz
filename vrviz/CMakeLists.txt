@@ -12,7 +12,7 @@ set(SHARED_SRC_DIR src/shared)
   # kept for legacy reason with the sample code.
   add_definitions(-DGNUC)
 
-  set(CMAKE_CXX_FLAGS         "${CMAKE_CXX_FLAGS} -std=c++11 -include ${SHARED_SRC_DIR}/compat.h")
+  set(CMAKE_CXX_FLAGS         "${CMAKE_CXX_FLAGS} -std=c++14 -include ${SHARED_SRC_DIR}/compat.h")
   set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -pedantic -g")
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 

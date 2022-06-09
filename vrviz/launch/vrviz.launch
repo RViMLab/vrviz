@@ -17,7 +17,7 @@
 
   <!-- This is where the steam-runtime exists for my install, but this may depend on steam version -->
   <arg name="user_home_dir" default="$(env HOME)"/>
-  <arg name="steam_run_path" default=".steam/ubuntu12_32/steam-runtime/run.sh"/>
+  <arg name="steam_run_path" default=".steam/steam/ubuntu12_64/steam-runtime-heavy/run.sh"/>
 
   <!-- Run the node with the correct prefix WARNING! This has an pathname that will be machine specific!  -->
   <node name="vrviz" pkg="vrviz" type="vrviz_gl" output="screen" required="true" launch-prefix="$(arg user_home_dir)/$(arg steam_run_path)" args=" -novblank " >

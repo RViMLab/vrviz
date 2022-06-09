@@ -27,7 +27,7 @@ Texture::Texture(GLenum TextureTarget, const std::string& FileName)
 
 bool Texture::Load()
 {
-    m_cv_image=cv::imread(m_fileName, CV_LOAD_IMAGE_COLOR);
+    m_cv_image=cv::imread(m_fileName, cv::IMREAD_COLOR);
     if (m_cv_image.empty()) // Check for invalid input
     {
         return false;
